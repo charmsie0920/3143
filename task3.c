@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
+#include <time.h> 
 
 /* Returns 1 if k is prime, 0 otherwise. Only checks divisors up to sqrt(k),
  * and only odd divisors, since k is guaranteed odd when this is called. */
@@ -52,18 +53,24 @@ int is_prime(int k) {
     return 1;
 }
 
-int main() {
-    int n;
-    printf("Enter an integer: ");
-    scanf("%d", &n);
+int main(int argc, char *argv[]) {
 
-    int num_threads;
-    printf("Enter the number of threads: ");
-    scanf("%d", &num_threads);
+    if (argc != 3) {
+        printf("Usage: %s <n> <number_of_threads>\n", argv[0]);
+        return 1;
+    }
+
+    int n = atoi(argv[1]);
+    int num_threads = atoi(argv[2]);
 
     if (n <= 2) {
         printf("There are no prime numbers strictly less than %d.\n", n);
         return 0;
+    }
+
+    if (num_threads < 1) {
+        printf("Number of threads must be at least 1.\n");
+        return 1;
     }
 
     /* One flag per candidate; each thread owns disjoint indices, so writes
@@ -76,7 +83,10 @@ int main() {
 
     omp_set_num_threads(num_threads);
 
-    double start_time = omp_get_wtime();
+    struct timespec start_time;
+    struct timespec end_time;
+
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
 
     is_prime_flag[2] = 1;
     #pragma omp parallel for schedule(dynamic, 1000)
@@ -85,6 +95,12 @@ int main() {
             is_prime_flag[k] = 1;
         }
     }
+
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+
+    double elapsed_seconds =
+    (end_time.tv_sec - start_time.tv_sec) +
+    (end_time.tv_nsec - start_time.tv_nsec) / 1e9;
 
     /* Compact the flags into a sorted list (serial, O(n)). */
     int *primes = malloc((size_t) n * sizeof(int));
@@ -100,8 +116,6 @@ int main() {
         }
     }
 
-    double end_time = omp_get_wtime();
-    double elapsed_seconds = end_time - start_time;
 
     if (n < 100) {
         for (int i = 0; i < count; i++) {
