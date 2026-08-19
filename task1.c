@@ -37,10 +37,13 @@ int is_prime(int k) {
     return 1;
 }
 
-int main() {
-    int n;
-    printf("Enter an integer: ");
-    scanf("%d", &n);
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        printf("Usage: %s <n>\n", argv[0]);
+        return 1;
+    }
+
+    int n = atoi(argv[1]);
 
     if (n <= 2) {
         printf("There are no prime numbers strictly less than %d.\n", n);
@@ -54,7 +57,14 @@ int main() {
         return 1;
     }
 
-    clock_t start_time = clock();
+    struct timespec start_time;
+    struct timespec end_time;
+
+    clock_gettime(
+        CLOCK_MONOTONIC,
+        &start_time
+    );
+
 
     int count = 0;
     primes[count++] = 2;
@@ -64,8 +74,13 @@ int main() {
         }
     }
 
-    clock_t end_time = clock();
-    double elapsed_seconds = (double) (end_time - start_time) / CLOCKS_PER_SEC;
+    clock_gettime(
+        CLOCK_MONOTONIC,
+        &end_time
+    );
+    double elapsed_seconds =
+        (end_time.tv_sec - start_time.tv_sec) +
+        (end_time.tv_nsec - start_time.tv_nsec) / 1e9;
 
     if (n < 100) {
         for (int i = 0; i < count; i++) {
