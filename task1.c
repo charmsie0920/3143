@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
         }
         printf("\n");
     } else {
-        FILE *fp = fopen("primes_output.txt", "w");
+        FILE *fp = fopen("output.txt", "w");
         if (fp == NULL) {
             fprintf(stderr, "Error: could not open output file.\n");
             free(primes);
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
         }
         fclose(fp);
         printf("Found %d prime numbers less than %d.\n", count, n);
-        printf("Output written to primes_output.txt\n");
+        printf("Output written to output.txt\n");
     }
 
     printf("Time taken: %f seconds\n", elapsed_seconds);
