@@ -50,12 +50,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    /* ---- Start of total-time measurement ---- */
-    struct timespec total_start;
-    struct timespec total_end;
- 
-    clock_gettime(CLOCK_MONOTONIC, &total_start);
-
     /* Worst case (small n) needs at most n-2 slots; fine up to n = 10,000,000. */
     int *primes = malloc((size_t) n * sizeof(int));
     if (primes == NULL) {
@@ -96,15 +90,7 @@ int main(int argc, char *argv[]) {
         printf("Output written to output.txt\n");
     }
 
-    clock_gettime(CLOCK_MONOTONIC, &total_end);
- 
-    double total_seconds =
-        (total_end.tv_sec - total_start.tv_sec) +
-        (total_end.tv_nsec - total_start.tv_nsec) / 1e9;
- 
-    printf("Number of threads: 1\n");
-    printf("Computation time: %.6f seconds\n", compute_seconds);
-    printf("Total time: %.6f seconds\n", total_seconds);
+    printf("Time taken: %f seconds\n", elapsed_seconds);
 
     free(primes);
     return 0;
