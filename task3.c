@@ -29,7 +29,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
-#include <time.h> 
 
 /* Returns 1 if k is prime, 0 otherwise. Only checks divisors up to sqrt(k),
  * and only odd divisors, since k is guaranteed odd when this is called. */
@@ -64,12 +63,12 @@ int main(int argc, char *argv[]) {
     int num_threads = atoi(argv[2]);
 
     if (n <= 2) {
-        printf("There are no prime numbers strictly less than %d.\n", n);
+        printf("no prime numbers less than %d.\n", n);
         return 0;
     }
 
     if (num_threads < 1) {
-        printf("Number of threads must be at least 1.\n");
+        printf("at least 1 thread required.\n");
         return 1;
     }
 
@@ -77,16 +76,13 @@ int main(int argc, char *argv[]) {
      * need no synchronisation. calloc zero-initialises to "not prime". */
     char *is_prime_flag = calloc((size_t) n, sizeof(char));
     if (is_prime_flag == NULL) {
-        fprintf(stderr, "Error: memory allocation failed.\n");
+        fprintf(stderr, "Error: failed memory allocation.\n");
         return 1;
     }
 
     omp_set_num_threads(num_threads);
 
-    struct timespec start_time;
-    struct timespec end_time;
-
-    clock_gettime(CLOCK_MONOTONIC, &start_time);
+    double start_time = omp_get_wtime();
 
     is_prime_flag[2] = 1;
     #pragma omp parallel for schedule(dynamic, 1000)
@@ -96,16 +92,15 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    clock_gettime(CLOCK_MONOTONIC, &end_time);
-
-    double elapsed_seconds =
-    (end_time.tv_sec - start_time.tv_sec) +
-    (end_time.tv_nsec - start_time.tv_nsec) / 1e9;
+    double elapsed_seconds = omp_get_wtime() - start_time;
+    if (elapsed_seconds < 0.0) {
+        elapsed_seconds = 0.0;
+    }
 
     /* Compact the flags into a sorted list (serial, O(n)). */
     int *primes = malloc((size_t) n * sizeof(int));
     if (primes == NULL) {
-        fprintf(stderr, "Error: memory allocation failed.\n");
+        fprintf(stderr, "Error: failed memory allocation.\n");
         free(is_prime_flag);
         return 1;
     }
@@ -125,7 +120,7 @@ int main(int argc, char *argv[]) {
     } else {
         FILE *fp = fopen("output.txt", "w");
         if (fp == NULL) {
-            fprintf(stderr, "Error: could not open output file.\n");
+            fprintf(stderr, "Error: no output file\n");
             free(primes);
             free(is_prime_flag);
             return 1;
@@ -134,11 +129,8 @@ int main(int argc, char *argv[]) {
             fprintf(fp, "%d\n", primes[i]);
         }
         fclose(fp);
-        printf("Found %d prime numbers less than %d.\n", count, n);
-        printf("Output written to output.txt\n");
     }
 
-    printf("Threads used: %d\n", num_threads);
     printf("Time taken: %f seconds\n", elapsed_seconds);
 
     free(primes);

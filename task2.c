@@ -3,6 +3,27 @@
  * FIT3143 Lab 1 (Week 4)
  *
  * Parallel version of Task 1 using POSIX Threads.
+ * - Prints to stdout when n < 100
+ * - Writes to a text file (output.txt) when n >= 100
+ * - Reports execution time
+ *
+ * Parallel partitioning scheme:
+ * Odd candidates are grouped into fixed-size chunks of CHUNK numbers.
+ * Thread `id` statically claims chunks id, id + num_threads, id + 2 *
+ * num_threads, ... (a cyclic / round-robin assignment) instead of one
+ * contiguous block each. Candidate cost grows with k (more trial divisions
+ * up to sqrt(k)), so a naive equal split of the range would give the thread
+ * handling the largest k values far more work than the one handling the
+ * smallest. Interleaving chunks means every thread gets a roughly even mix
+ * of cheap (small k) and expensive (large k) chunks, without needing a
+ * shared counter, a lock, or any runtime coordination.
+ *
+ * Each thread writes primality results straight into a shared flags[]
+ * array, one byte per candidate. Because chunk assignment is disjoint,
+ * every index is written by exactly one thread, so no synchronisation is
+ * needed there either. A single serial pass afterwards compacts flags[]
+ * into a sorted primes[] array -- the same technique Task 3 uses with
+ * OpenMP, which keeps the two implementations directly comparable.
  *
  * Compile:
  * gcc task2.c -o task2 -pthread -lm
@@ -17,8 +38,12 @@
 #include <pthread.h>
 #include <time.h>
 
+/* Odd candidates per chunk. Matches Task 3's schedule(dynamic, 1000) so the
+ * two parallel schemes are directly comparable. */
 #define CHUNK 1000
 
+/* Returns 1 if k is prime, 0 otherwise. Only checks divisors up to sqrt(k),
+ * and only odd divisors, since k is guaranteed odd when this is called. */
 int is_prime(int k) {
     if (k < 2) {
         return 0;
@@ -39,14 +64,15 @@ int is_prime(int k) {
     return 1;
 }
 
-/* Per-thread state. flags is shared; every other field is private. */
+/* Per-thread state. flags is shared (each thread only ever writes indices
+ * it owns); every other field is private. thread_time records how long
+ * this thread spent working, used afterwards to report load imbalance. */
 typedef struct {
-    int id;              
-    int num_threads;     
-    int n;               
-    char *flags;         
-    long num_candidates; 
-    double thread_time;  
+    int id;
+    int num_threads;
+    char *flags;
+    long num_candidates;
+    double thread_time;
 } ThreadData;
 
 
@@ -58,6 +84,8 @@ void *find_primes(void *arg) {
 
     clock_gettime(CLOCK_MONOTONIC, &t0);
 
+    /* Chunk c belongs to this thread iff c % num_threads == id -- the
+     * cyclic assignment described in the file header. */
     for (long c = d->id; c * CHUNK < d->num_candidates; c += d->num_threads) {
 
         long jlo = c * CHUNK;
@@ -124,6 +152,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    /* Odd numbers from 3 up to (but not including) n, counted as an index
+     * space 0..num_candidates-1 so chunk boundaries are plain integers;
+     * candidate j corresponds to k = 3 + 2*j. */
     long num_candidates = ((long) n - 2) / 2;
 
     /* ---- Computation phase --------------------------------------------- */
@@ -136,7 +167,6 @@ int main(int argc, char *argv[]) {
 
         thread_data[i].id             = i;
         thread_data[i].num_threads    = num_threads;
-        thread_data[i].n              = n;
         thread_data[i].flags          = flags;
         thread_data[i].num_candidates = num_candidates;
         thread_data[i].thread_time    = 0.0;
@@ -212,9 +242,6 @@ int main(int argc, char *argv[]) {
         }
 
         fclose(fp);
-
-        printf("Found %d prime numbers less than %d.\n", count, n);
-        printf("Output written to output.txt\n");
     }
 
     clock_gettime(CLOCK_MONOTONIC, &total_end);
@@ -245,7 +272,6 @@ int main(int argc, char *argv[]) {
         imbalance = 100.0 * (max_thread_time - min_thread_time) / max_thread_time;
     }
 
-    printf("Number of threads: %d\n", num_threads);
     printf("Computation time: %.6f seconds\n", compute_seconds);
     printf("Total time: %.6f seconds\n", total_seconds);
     printf("Thread time min: %.6f seconds\n", min_thread_time);

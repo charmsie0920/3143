@@ -59,6 +59,8 @@ int main(int argc, char *argv[]) {
 
     clock_t start_time = clock();
 
+    /* 2 is the only even prime, so it is added directly and the search
+     * loop only walks odd candidates (k += 2), halving the work up front. */
     int count = 0;
     primes[count++] = 2;
     for (int k = 3; k < n; k += 2) {
@@ -70,6 +72,9 @@ int main(int argc, char *argv[]) {
     clock_t end_time = clock();
     double elapsed_seconds = (double) (end_time - start_time) / CLOCKS_PER_SEC;
 
+    /* Timing stops before output (printing / file I/O), so it measures only
+     * the search itself -- consistent with how Task 2 and Task 3 time their
+     * parallel region, keeping the speedup comparison fair. */
     if (n < 100) {
         for (int i = 0; i < count; i++) {
             printf("%d ", primes[i]);
@@ -86,8 +91,6 @@ int main(int argc, char *argv[]) {
             fprintf(fp, "%d\n", primes[i]);
         }
         fclose(fp);
-        printf("Found %d prime numbers less than %d.\n", count, n);
-        printf("Output written to output.txt\n");
     }
 
     printf("Time taken: %f seconds\n", elapsed_seconds);
