@@ -53,6 +53,10 @@ int is_prime(int k) {
     return 1;
 }
 
+double elapsed(struct timespec a, struct timespec b) {
+    return (b.tv_sec - a.tv_sec) + (b.tv_nsec - a.tv_nsec) / 1e9;
+}
+
 int main(int argc, char *argv[]) {
 
     if (argc != 3) {
@@ -73,9 +77,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    struct timespec total_start;
+    struct timespec total_end;
+ 
+    clock_gettime(CLOCK_MONOTONIC, &total_start);
+
     /* One flag per candidate; each thread owns disjoint indices, so writes
      * need no synchronisation. calloc zero-initialises to "not prime". */
     char *is_prime_flag = calloc((size_t) n, sizeof(char));
+
+    double *thread_times = calloc((size_t) num_threads, sizeof(double));
+
     if (is_prime_flag == NULL) {
         fprintf(stderr, "Error: memory allocation failed.\n");
         return 1;
@@ -83,12 +95,29 @@ int main(int argc, char *argv[]) {
 
     omp_set_num_threads(num_threads);
 
-    struct timespec start_time;
-    struct timespec end_time;
+    int actual_threads = num_threads;
 
-    clock_gettime(CLOCK_MONOTONIC, &start_time);
+    struct timespec compute_start;
+    struct timespec compute_end;
+ 
+    clock_gettime(CLOCK_MONOTONIC, &compute_start);
 
     is_prime_flag[2] = 1;
+
+    #pragma omp parallel
+    {
+        struct timespec t0;
+        struct timespec t1;
+ 
+        int tid = omp_get_thread_num();
+ 
+        if (tid == 0) {
+            actual_threads = omp_get_num_threads();
+        }
+ 
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+
+
     #pragma omp parallel for schedule(dynamic, 1000)
     for (int k = 3; k < n; k += 2) {
         if (is_prime(k)) {
@@ -96,11 +125,14 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    clock_gettime(CLOCK_MONOTONIC, &end_time);
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+ 
+    thread_times[tid] = elapsed(t0, t1);
+    }
 
-    double elapsed_seconds =
-    (end_time.tv_sec - start_time.tv_sec) +
-    (end_time.tv_nsec - start_time.tv_nsec) / 1e9;
+    clock_gettime(CLOCK_MONOTONIC, &compute_end);
+ 
+    double compute_seconds = elapsed(compute_start, compute_end);
 
     /* Compact the flags into a sorted list (serial, O(n)). */
     int *primes = malloc((size_t) n * sizeof(int));
@@ -138,10 +170,38 @@ int main(int argc, char *argv[]) {
         printf("Output written to output.txt\n");
     }
 
-    printf("Threads used: %d\n", num_threads);
-    printf("Time taken: %f seconds\n", elapsed_seconds);
+    clock_gettime(CLOCK_MONOTONIC, &total_end);
+ 
+    double total_seconds = elapsed(total_start, total_end);
+
+
+    double min_thread_time = thread_times[0];
+    double max_thread_time = thread_times[0];
+ 
+    for (int i = 1; i < actual_threads; i++) {
+ 
+        if (thread_times[i] < min_thread_time) {
+            min_thread_time = thread_times[i];
+        }
+        if (thread_times[i] > max_thread_time) {
+            max_thread_time = thread_times[i];
+        }
+    }
+ 
+    double imbalance = 0.0;
+    if (max_thread_time > 0.0) {
+        imbalance = 100.0 * (max_thread_time - min_thread_time) / max_thread_time;
+    }
+ 
+    printf("Number of threads: %d\n", actual_threads);
+    printf("Computation time: %.6f seconds\n", compute_seconds);
+    printf("Total time: %.6f seconds\n", total_seconds);
+    printf("Thread time min: %.6f seconds\n", min_thread_time);
+    printf("Thread time max: %.6f seconds\n", max_thread_time);
+    printf("Thread imbalance: %.2f %%\n", imbalance);
 
     free(primes);
     free(is_prime_flag);
+    free(thread_times);
     return 0;
 }
