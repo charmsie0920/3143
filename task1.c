@@ -4,7 +4,7 @@
  *
  * Finds all prime numbers strictly less than a user-provided integer n.
  * - Prints to stdout when n < 100
- * - Writes to a text file (primes_output.txt) when n >= 100
+ * - Writes to a text file (output.txt) when n >= 100
  * - Reports execution time
  *
  * Compile: gcc task1.c -o task1 -lm
@@ -57,14 +57,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    struct timespec start_time;
-    struct timespec end_time;
-
-    clock_gettime(
-        CLOCK_MONOTONIC,
-        &start_time
-    );
-
+    clock_t start_time = clock();
 
     int count = 0;
     primes[count++] = 2;
@@ -74,13 +67,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    clock_gettime(
-        CLOCK_MONOTONIC,
-        &end_time
-    );
-    double elapsed_seconds =
-        (end_time.tv_sec - start_time.tv_sec) +
-        (end_time.tv_nsec - start_time.tv_nsec) / 1e9;
+    clock_t end_time = clock();
+    double elapsed_seconds = (double) (end_time - start_time) / CLOCKS_PER_SEC;
 
     if (n < 100) {
         for (int i = 0; i < count; i++) {
