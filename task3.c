@@ -2,25 +2,17 @@
  * Task 3 - OpenMP: Finding Prime Numbers
  * FIT3143 Lab 1 (Week 4)
  *
- * Parallel version of task1.c using OpenMP.
- * Finds all prime numbers strictly less than a user-provided integer n.
- * - Prints to stdout when n < 100
- * - Writes to a text file (output.txt) when n >= 100
- * - Reports execution time (wall clock, via omp_get_wtime)
+ * Parallel version of task1 using OpenMP to find primes less than n.
+ * Outputs to the console if n < 100, or to output.txt if n >= 100.
  *
- * Parallel partitioning scheme:
- * Each thread tests a subset of odd candidates k and writes its primality
- * result directly to a unique slot (is_prime_flag[k]). Because each thread
- * only ever writes to indices it owns, there is no race condition and no
- * locking is needed. A single serial pass afterwards compacts the flags
- * into a sorted primes[] array (the k values are scanned in increasing
- * order, so the result comes out sorted for free).
- *
- * schedule(dynamic, 1000) is used because candidate cost grows with k
- * (more trial divisions up to sqrt(k)): an equal static split of the range
- * would give the thread handling the largest k values more work than the
- * thread handling the smallest ones. Dynamic scheduling hands out chunks
- * on demand so faster threads pick up more chunks, balancing the load.
+ * How it works:
+ * - Instead of using locks, each thread updates its own specific index in 
+ *   an array (is_prime_flag). This prevents race conditions.
+ * - After the parallel section finishes, a normal serial loop goes through 
+ *   the array to collect all the primes in order.
+ * - I used schedule(dynamic, 1000) because larger numbers take more math 
+ *   to check. Dynamic scheduling gives out chunks of work as threads become 
+ *   free, which balances the load better than a static split.
  *
  * Compile: gcc task3.c -o task3 -fopenmp -lm
  */

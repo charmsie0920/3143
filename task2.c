@@ -2,34 +2,23 @@
  * Task 2 - POSIX Threads: Finding Prime Numbers
  * FIT3143 Lab 1 (Week 4)
  *
- * Parallel version of Task 1 using POSIX Threads.
- * - Prints to stdout when n < 100
- * - Writes to a text file (output.txt) when n >= 100
- * - Reports execution time
+ * Parallel version of Task 1 using POSIX Threads (pthreads).
+ * Outputs to the console if n < 100, or to output.txt if n >= 100.
  *
- * Parallel partitioning scheme:
- * Odd candidates are grouped into fixed-size chunks of CHUNK numbers.
- * Thread `id` statically claims chunks id, id + num_threads, id + 2 *
- * num_threads, ... (a cyclic / round-robin assignment) instead of one
- * contiguous block each. Candidate cost grows with k (more trial divisions
- * up to sqrt(k)), so a naive equal split of the range would give the thread
- * handling the largest k values far more work than the one handling the
- * smallest. Interleaving chunks means every thread gets a roughly even mix
- * of cheap (small k) and expensive (large k) chunks, without needing a
- * shared counter, a lock, or any runtime coordination.
+ * How it works:
+ * - Threads take turns processing fixed-size chunks of numbers in a round-robin 
+ *   style (e.g., Thread 0 takes chunk 0, Thread 1 takes chunk 1, and so on).
+ * - Since larger numbers take more math to check, simply splitting the range 
+ *   into equal halves would leave the thread with the biggest numbers doing way 
+ *   more work. The round-robin approach gives every thread a fair mix of small 
+ *   and large numbers, balancing the load without needing slow mutex locks.
+ * - Threads write their results straight into a shared array (flags). Since each 
+ *   thread only writes to its assigned indices, they don't step on each other, 
+ *   which avoids race conditions.
+ * - Finally, a normal serial loop collects the primes in order (just like Task 3).
  *
- * Each thread writes primality results straight into a shared flags[]
- * array, one byte per candidate. Because chunk assignment is disjoint,
- * every index is written by exactly one thread, so no synchronisation is
- * needed there either. A single serial pass afterwards compacts flags[]
- * into a sorted primes[] array -- the same technique Task 3 uses with
- * OpenMP, which keeps the two implementations directly comparable.
- *
- * Compile:
- * gcc task2.c -o task2 -pthread -lm
- *
- * Run:
- * ./task2 <n> <number_of_threads>
+ * Compile: gcc task2.c -o task2 -pthread -lm
+ * Run:     ./task2 <n> <number_of_threads>
  */
 
 #include <stdio.h>
