@@ -1,0 +1,51 @@
+#!/bin/bash
+#SBATCH --job-name=nsize_all
+#SBATCH --time=00:09:00
+#SBATCH --mem=16G
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=8
+#SBATCH --partition=defq
+
+# Problem-size sweep across ALL implementations at a matched degree of
+# parallelism (8 processes for MPI, 8 threads for pthreads/OpenMP), on one
+# node. This is the data behind presentation graphs 1 and 2:
+#
+#   graph 1 -- runtime vs n, MPI against pthreads/OpenMP
+#   graph 2 -- speedup vs n, all versions against serial
+#
+# The serial runs at each n are included here so every speedup has a
+# denominator measured on the same node in the same job.
+#
+# Submit with: sbatch nsize_all.job
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+REPS=3
+P=8
+
+echo "Problem-size sweep, all implementations, parallelism = $P"
+echo "Node: $(hostname)"
+echo
+
+for N in 1000000 5000000 10000000 50000000 100000000; do
+    for REP in $(seq 1 $REPS); do
+
+        echo "--- n=$N serial rep=$REP ---"
+        ./task1 $N
+
+        echo "--- n=$N pthreads rep=$REP ---"
+        ./task2 $N $P
+
+        echo "--- n=$N openmp rep=$REP ---"
+        ./task3 $N $P
+
+        # Cyclic is used for the cross-implementation comparison because it
+        # is the scheme that matches what task2 and task3 do.
+        echo "--- n=$N mpi rep=$REP ---"
+        srun --ntasks=$P ./task1_mpi $N 1
+    done
+done
+
+echo
+echo "Problem-size sweep complete."

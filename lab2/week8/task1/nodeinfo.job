@@ -1,0 +1,35 @@
+#!/bin/bash
+#SBATCH --job-name=nodeinfo
+#SBATCH --time=00:02:00
+#SBATCH --mem=2G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --partition=defq
+
+# Machine specifications for the report. The Lab 1 feedback asked for
+# "clearer machine specifications", and Task 3 requires the number of
+# processors (cores) available. Run this once and paste the output into
+# your slides.
+#
+# Submit with: sbatch nodeinfo.job
+
+echo "=== Node ==="
+hostname
+echo
+echo "=== CPU ==="
+lscpu | grep -E 'Model name|^CPU\(s\)|Thread\(s\) per core|Core\(s\) per socket|Socket\(s\)|CPU MHz|L3 cache|NUMA'
+echo
+echo "=== Memory ==="
+free -h | head -2
+echo
+echo "=== OS and compiler ==="
+cat /etc/redhat-release 2>/dev/null || uname -a
+gcc --version | head -1
+echo
+echo "=== MPI ==="
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+mpicc --version | head -1
+mpirun --version | head -1
+echo
+echo "=== Cluster ==="
+sinfo

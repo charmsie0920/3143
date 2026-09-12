@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --job-name=sweep_2node16
+#SBATCH --time=00:09:00
+#SBATCH --mem=16G
+#SBATCH --ntasks=16
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=8
+#SBATCH --partition=defq
+
+# THE KEY EXPERIMENT.
+#
+# The same 16 processes as the p=16 rows of sweep_1node.job, but forced onto
+# two nodes (8 each) instead of one. Identical computation, identical process
+# count -- the only difference is that collective communication now crosses
+# the gigabit network instead of staying in shared memory.
+#
+# Compare the 'collection' column here against the p=16 rows from the
+# single-node sweep. That difference IS the network cost, isolated.
+#
+# All three schemes fit here because each run takes only a few seconds.
+#
+# Submit with: sbatch sweep_2node16.job
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+N=100000000
+REPS=5
+
+echo "Two-node run: n=$N ntasks=16 (8 per node) reps=$REPS"
+echo
+
+for SCHEME in 0 1 2; do
+    for REP in $(seq 1 $REPS); do
+        echo "--- scheme=$SCHEME rep=$REP ---"
+        srun ./task1_mpi $N $SCHEME
+    done
+done
+
+echo
+echo "Two-node 16-process run complete."
+echo "Check the 'nodes=' field says 2 -- if it says 1, the placement did not"
+echo "happen and the comparison is invalid."

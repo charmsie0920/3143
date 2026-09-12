@@ -1,0 +1,43 @@
+#!/bin/bash
+#SBATCH --job-name=threads
+#SBATCH --time=00:09:00
+#SBATCH --mem=16G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --partition=defq
+
+# Thread sweep for the pthreads and OpenMP versions, on ONE CAAS node.
+#
+# These numbers replace your Week 4 laptop timings. Presentation graph 3
+# compares MPI processes against threads at the same count, so all three
+# implementations must run on identical hardware or the comparison is
+# meaningless.
+#
+# Threads cannot cross a node boundary, so this caps at 16. That is exactly
+# the point worth making on the slide: MPI keeps scaling past 16 and shared
+# memory does not.
+#
+# One implementation per submission, since both would exceed the time limit:
+#   sbatch --export=ALL,IMPL=task2 threads.job     # pthreads
+#   sbatch --export=ALL,IMPL=task3 threads.job     # OpenMP
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+N=100000000
+REPS=3
+IMPL=${IMPL:-task2}
+
+echo "Thread sweep: $IMPL n=$N reps=$REPS"
+echo "Node: $(hostname)"
+echo "Cores available to this job: $SLURM_CPUS_PER_TASK"
+echo
+
+for TH in 1 2 4 8 16; do
+    for REP in $(seq 1 $REPS); do
+        echo "--- $IMPL threads=$TH rep=$REP ---"
+        ./$IMPL $N $TH
+    done
+done
+
+echo
+echo "Thread sweep complete."

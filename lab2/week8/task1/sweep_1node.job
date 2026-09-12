@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --job-name=sweep_1node
+#SBATCH --time=00:09:00
+#SBATCH --mem=16G
+#SBATCH --ntasks=16
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=16
+#SBATCH --partition=defq
+
+# Process-count sweep on a SINGLE node: p = 2, 4, 8, 16.
+# One scheme per submission, because all three in one job would exceed the
+# ten-minute limit. Submit it three times:
+#
+#   sbatch --export=ALL,SCHEME=0 sweep_1node.job    # block
+#   sbatch --export=ALL,SCHEME=1 sweep_1node.job    # cyclic
+#   sbatch --export=ALL,SCHEME=2 sweep_1node.job    # weighted
+#
+# Wait for each to finish before submitting the next (one running job per
+# user). Check with: squeue -u ${USER}
+#
+# p = 1 lives in baseline.job instead, since it takes ~50 s per run and
+# would blow the time limit here.
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+N=100000000
+REPS=5
+SCHEME=${SCHEME:-0}
+
+echo "Single-node sweep: n=$N scheme=$SCHEME reps=$REPS"
+echo "Node: $(hostname)"
+echo
+
+for NP in 2 4 8 16; do
+    for REP in $(seq 1 $REPS); do
+        echo "--- np=$NP rep=$REP ---"
+        srun --ntasks=$NP ./task1_mpi $N $SCHEME
+    done
+done
+
+echo
+echo "Sweep complete."

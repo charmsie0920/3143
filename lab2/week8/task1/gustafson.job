@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --job-name=gustafson
+#SBATCH --time=00:09:00
+#SBATCH --mem=16G
+#SBATCH --ntasks=16
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=16
+#SBATCH --partition=defq
+
+# WEAK SCALING, for Gustafson's Law.
+#
+# Amdahl and Gustafson make different assumptions, and the spec asks you to
+# design experiments accordingly:
+#
+#   Amdahl     problem size FIXED, add processors -> use sweep_1node.job
+#   Gustafson  work per processor FIXED, problem grows -> this job
+#
+# Trial-division work up to x grows roughly as x^1.5, so holding work per
+# process constant means scaling n as p^(2/3). With a base of n = 5*10^7 at
+# p = 1:
+#
+#   p=1   n=50,000,000       p=2   n=79,370,000
+#   p=4   n=126,000,000      p=8   n=200,000,000
+#   p=16  n=317,000,000
+#
+# If scaling were perfect, every run here would take the SAME wall-clock
+# time. The extent to which runtime creeps up as p grows is the scaled
+# speedup shortfall.
+#
+# Submit with: sbatch gustafson.job
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+REPS=3
+SCHEME=1
+
+echo "Weak scaling (Gustafson): work per process held constant"
+echo "Node: $(hostname)"
+echo
+
+run_pair() {
+    NP=$1
+    N=$2
+    for REP in $(seq 1 $REPS); do
+        echo "--- weak scaling np=$NP n=$N rep=$REP ---"
+        srun --ntasks=$NP ./task1_mpi $N $SCHEME cyclic-weak
+    done
+}
+
+run_pair 1  50000000
+run_pair 2  79370000
+run_pair 4  126000000
+run_pair 8  200000000
+run_pair 16 317000000
+
+echo
+echo "Weak scaling complete."

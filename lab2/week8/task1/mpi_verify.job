@@ -1,0 +1,63 @@
+#!/bin/bash
+#SBATCH --job-name=mpi_verify
+#SBATCH --time=00:08:00
+#SBATCH --mem=8G
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --partition=defq
+
+# Correctness check for all three distribution schemes, across two nodes.
+# Every scheme must produce output identical to the serial version -- the
+# cyclic scheme in particular relies on the root's merge to restore order,
+# so it is the one most likely to break.
+#
+# This is a correctness run, not a performance run. Ignore the timings here;
+# the process counts are small and several configurations share nodes.
+#
+# Build first on the head node:
+#   module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+#   mpicc task1_mpi.c -o task1_mpi -O2 -lm
+#   gcc   task1.c     -o task1     -O2 -lm
+#
+# Submit with: sbatch mpi_verify.job
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+N=1000000
+
+echo "Generating serial reference for n = $N"
+./task1 $N > /dev/null
+mv output.txt serial_reference.txt
+echo "Reference has $(wc -l < serial_reference.txt) primes"
+echo
+
+FAILURES=0
+
+for SCHEME in 0 1 2; do
+    case $SCHEME in
+        0) NAME="block   " ;;
+        1) NAME="cyclic  " ;;
+        2) NAME="weighted" ;;
+    esac
+
+    # 7 is deliberate: an odd count that divides nothing evenly is where
+    # off-by-one errors in the range boundaries show up.
+    for NP in 1 2 4 7 8; do
+        srun --ntasks=$NP ./task1_mpi $N $SCHEME > /dev/null
+
+        if diff -q serial_reference.txt output_mpi.txt > /dev/null; then
+            echo "$NAME np=$NP  MATCH"
+        else
+            echo "$NAME np=$NP  ***MISMATCH***"
+            FAILURES=$((FAILURES + 1))
+        fi
+    done
+    echo
+done
+
+if [ $FAILURES -eq 0 ]; then
+    echo "All schemes correct. Ready for performance runs."
+else
+    echo "$FAILURES failure(s) -- fix before measuring anything."
+fi

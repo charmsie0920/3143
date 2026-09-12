@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --job-name=baseline
+#SBATCH --time=00:09:00
+#SBATCH --mem=16G
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --partition=defq
+
+# The two baselines at n = 10^8, both single-process and therefore slow
+# (~50 s each), so only 3 repeats fit inside the time limit.
+#
+#   1. SERIAL task1 -- the denominator for every speedup figure in the report.
+#   2. MPI with one process -- NOT the speedup baseline. Its gap from the
+#      serial run is MPI's fixed overhead (init, finalize, collectives with a
+#      single participant), which is worth reporting on its own.
+#
+# Only one scheme is run for the MPI baseline: with a single rank, block,
+# cyclic and weighted all hand that rank every candidate, so they are the
+# same computation.
+#
+# Submit with: sbatch baseline.job
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+N=100000000
+REPS=3
+
+echo "Baselines: n=$N reps=$REPS"
+echo "Node: $(hostname)"
+echo
+
+for REP in $(seq 1 $REPS); do
+    echo "--- serial rep=$REP ---"
+    ./task1 $N
+done
+
+echo
+
+for REP in $(seq 1 $REPS); do
+    echo "--- mpi p=1 rep=$REP ---"
+    srun --ntasks=1 ./task1_mpi $N 1
+done
+
+echo
+echo "Baselines complete."
