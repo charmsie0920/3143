@@ -96,14 +96,6 @@ static long prime_count_bound(long x) {
     return (long) (1.25506 * (double) x / log((double) x)) + 1;
 }
 
-int provided;
-MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
-
-if (provided < MPI_THREAD_FUNNELED) {
-    fprintf(stderr, "MPI library lacks MPI_THREAD_FUNNELED support "
-                    "(requested %d, got %d).\n", MPI_THREAD_FUNNELED, provided);
-    MPI_Abort(MPI_COMM_WORLD, 1);
-}
 
 
 
@@ -196,7 +188,16 @@ static void merge_runs(const int *segments, const int *counts, const int *displs
 
 int main(int argc, char *argv[]) {
 
-    MPI_Init(&argc, &argv);
+    //init threads 
+    int provided;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
+
+    if (provided < MPI_THREAD_FUNNELED) {
+        fprintf(stderr, "MPI library lacks MPI_THREAD_FUNNELED support "
+                        "(requested %d, got %d).\n",
+                MPI_THREAD_FUNNELED, provided);
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
 
     int rank;
     int size;
