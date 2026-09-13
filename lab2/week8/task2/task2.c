@@ -511,16 +511,16 @@ int main(int argc, char *argv[]) {
      * holds the prime 2, and index 0 everywhere else. */
     int base = local_count;
 
-    /* ---- Phase A: each worker searches its own sub-range -----------------
-     * Sequential for now -- this loop becomes the OpenMP parallel region in
-     * the next step. Running the real partitioning serially first means any
-     * gap, overlap or overrun shows up here, where there is no concurrency
-     * to confuse the diagnosis. */
-    for (int t = 0; t < threads; t++) {
+    #pragma omp parallel num_threads(threads)
+    {
+        int t = omp_get_thread_num();
 
         int  found = 0;
         int *mine  = scratch + tslice[t];
 
+        /* ---- Phase A: search this thread's own sub-range ----------------
+         * Every write lands in this thread's private slice, so there is no
+         * lock, no atomic, and no false sharing on the output. */
         if (scheme == SCHEME_CYCLIC) {
 
             for (long m = tbounds[t]; m < tbounds[t + 1]; m++) {
@@ -552,22 +552,28 @@ int main(int argc, char *argv[]) {
         }
 
         tcount[t + 1] = found;
-    }
 
-    /* ---- Phase B: exclusive prefix sum over the per-worker counts -------- */
-    for (int t = 0; t < threads; t++) {
-        tcount[t + 1] += tcount[t];
-    }
+        /* ---- Phase B: exclusive prefix sum over the per-thread counts ----
+         * Nobody may read tcount[] until every thread has published its own,
+         * hence the barrier. omp single then elects one thread for the O(t)
+         * scan, and the implicit barrier at the end of single stops the
+         * others reading the offsets before they are written. */
+        #pragma omp barrier
 
-    /* ---- Phase C: copy each worker's primes to their final home ----------
-     * tcount[t] is now the number of primes found by workers below t, which
-     * is exactly where worker t's block belongs. */
-    for (int t = 0; t < threads; t++) {
+        #pragma omp single
+        {
+            for (int i = 0; i < threads; i++) {
+                tcount[i + 1] += tcount[i];
+            }
+        }
 
-        int found = tcount[t + 1] - tcount[t];
-
+        /* ---- Phase C: copy this thread's primes to their final home ------
+         * tcount[t] is now the number of primes found by threads below t,
+         * which is exactly where this thread's block belongs. Each thread
+         * still writes a disjoint destination range, so this is safe to run
+         * concurrently. */
         if (found > 0) {
-            memcpy(local_primes + base + tcount[t], scratch + tslice[t],
+            memcpy(local_primes + base + tcount[t], mine,
                    (size_t) found * sizeof(int));
         }
     }
