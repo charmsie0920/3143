@@ -422,8 +422,9 @@ int main(int argc, char *argv[]) {
     long   *tbounds = malloc((size_t) (threads + 1) * sizeof(long));
     long   *tslice  = malloc((size_t) (threads + 1) * sizeof(long));
     int    *tcount  = calloc((size_t) threads + 1, sizeof(int));
+    double *ttime   = calloc((size_t) threads, sizeof(double));
 
-    if (tbounds == NULL || tslice == NULL || tcount == NULL) {
+    if (tbounds == NULL || tslice == NULL || tcount == NULL || ttime == NULL) {
         fprintf(stderr, "Rank %d: thread metadata allocation failed.\n", rank);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
@@ -515,6 +516,11 @@ int main(int argc, char *argv[]) {
     {
         int t = omp_get_thread_num();
 
+        /* omp_get_wtime, not MPI_Wtime: under MPI_THREAD_FUNNELED only the
+         * master thread may call into MPI. Both are wall-clock, so the two
+         * measurements stay comparable. */
+        double t_thread0 = omp_get_wtime();
+
         int  found = 0;
         int *mine  = scratch + tslice[t];
 
@@ -552,6 +558,10 @@ int main(int argc, char *argv[]) {
         }
 
         tcount[t + 1] = found;
+
+        /* Recorded before the barrier, so it measures this thread's own
+         * search and not the time it then spends waiting for the slowest. */
+        ttime[t] = omp_get_wtime() - t_thread0;
 
         /* ---- Phase B: exclusive prefix sum over the per-thread counts ----
          * Nobody may read tcount[] until every thread has published its own,
@@ -649,16 +659,40 @@ int main(int argc, char *argv[]) {
     double my_merge  = t_end - t_merge_start;
     double my_comm   = t_comm;
 
+    /* Level-2 imbalance: how unevenly this rank's own threads finished. A
+     * rank cannot leave the parallel region until its slowest thread is
+     * done, so a large spread here wastes cores even when the ranks are
+     * perfectly balanced against one another. Reported separately from the
+     * rank-level figure because the two levels can fail independently. */
+    double my_tmax = ttime[0];
+    double my_tmin = ttime[0];
+
+    for (int t = 1; t < threads; t++) {
+        if (ttime[t] > my_tmax) my_tmax = ttime[t];
+        if (ttime[t] < my_tmin) my_tmin = ttime[t];
+    }
+
+    double my_thread_imb = 0.0;
+    if (my_tmax > 0.0) {
+        my_thread_imb = 100.0 * (my_tmax - my_tmin) / my_tmax;
+    }
+
     double max_total  = 0.0;
     double max_search = 0.0;
     double min_search = 0.0;
     double max_comm   = 0.0;
+    double max_thread_imb = 0.0;
 
     /* Parallel runtime is the slowest rank, not rank 0. */
     MPI_Reduce(&my_total,  &max_total,  1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
     MPI_Reduce(&my_search, &max_search, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
     MPI_Reduce(&my_search, &min_search, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
     MPI_Reduce(&my_comm,   &max_comm,   1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    /* Worst thread imbalance on any rank -- the one that actually held the
+     * job up. */
+    MPI_Reduce(&my_thread_imb, &max_thread_imb, 1, MPI_DOUBLE, MPI_MAX,
+               0, MPI_COMM_WORLD);
 
     /* ---- How many distinct nodes were actually used ---------------------
      * Recorded so the CSV distinguishes a single-node run from a run spread
@@ -723,7 +757,7 @@ int main(int argc, char *argv[]) {
         }
 
         /* ---- Phase accounting for Amdahl's Law ---------------------------
-         * parallel : the search, which divides by the process count
+         * parallel : the search, which divides by procs * threads
          * serial   : broadcast + prefix sum + merge -- work whose cost does
          *            NOT fall as ranks are added
          * overhead : the collective communication, which actually GROWS with
@@ -751,7 +785,8 @@ int main(int argc, char *argv[]) {
         printf("  overhead (comm)  : %.6f s\n", overhead);
         printf("    collectives    : %.6f s\n", max_comm);
         printf("  search (fastest) : %.6f s\n", min_search);
-        printf("  imbalance        : %.2f %%\n", imbalance);
+        printf("  imbalance (rank) : %.2f %%\n", imbalance);
+        printf("  imbalance (thrd) : %.2f %%\n", max_thread_imb);
 
         /* Unified CSV, same column layout as the serial, pthreads and OpenMP
          * versions so one parser handles every result file.
@@ -773,6 +808,7 @@ int main(int argc, char *argv[]) {
     free(tbounds);
     free(tslice);
     free(tcount);
+    free(ttime);
 
     MPI_Finalize();
     return 0;
