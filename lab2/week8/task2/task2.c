@@ -1,14 +1,15 @@
 /*
- * Task 1 - Open MPI: Finding Prime Numbers
+ * Task 2 - Hybrid Open MPI + OpenMP: Finding Prime Numbers
  * FIT3143 Lab 2 (Week 8)
  *
- * Parallel prime search using MPI. Finds all primes strictly less than n
- * and writes them, in ascending order, to a text file from the root process.
+ * Hybrid prime search. Distributed-memory parallelism across MPI processes,
+ * shared-memory parallelism across OpenMP threads inside each process. Finds
+ * all primes strictly less than n and writes them, in ascending order, to a
+ * text file from the root process.
  *
- * This version adds the three workload distribution schemes and the timing
- * instrumentation. The prime test is unchanged from the serial, pthreads
- * and OpenMP versions, so any difference in runtime is parallelisation and
- * not a different algorithm.
+ * Derived from task1_mpi.c. The prime test, the distribution schemes and the
+ * timing methodology are all unchanged, so a hybrid run and a pure-MPI run at
+ * the same n differ only by the threading layer and are directly comparable.
  *
  * ---- The three distribution schemes ----------------------------------------
  *
@@ -53,8 +54,12 @@
  * total prime count must fit in an int. Fine to around n = 10^9.
  *
  * Build: module load openmpi/4.1.5-gcc-11.2.0-ux65npg
- *        mpicc task1_mpi.c -o task1_mpi -O2 -lm
- * Run:   srun ./task1_mpi <n> [scheme 0|1|2] [label]   (inside a SLURM job)
+ *        mpicc task2.c -o task2 -O2 -fopenmp -lm
+ * Run:   srun ./task2 <n> [scheme 0|1|2] [label]   (inside a SLURM job)
+ *
+ * Bind properly once threads are involved, or the measurements are
+ * meaningless -- unbound, every rank's threads land on the same cores:
+ *        mpirun --map-by socket:PE=<threads> --bind-to core -np <p> ./task2 ...
  *
  * The optional label replaces the scheme name in the CSV output. It exists so
  * weak-scaling runs can be tagged (e.g. "cyclic-weak") and kept separate from
@@ -69,8 +74,11 @@
 #include <limits.h>
 #include <math.h>
 #include <mpi.h>
+#include <omp.h>
 
-#define OUTPUT_FILE "output_mpi.txt"
+/* Distinct from task1_mpi.c's output_mpi.txt: the two files have to sit side
+ * by side so the hybrid result can be diffed against the pure-MPI one. */
+#define OUTPUT_FILE "output_hybrid.txt"
 
 /* Candidates per chunk for the cyclic scheme. Matches the pthreads CHUNK
  * and the OpenMP schedule(dynamic, 1000) so all three parallel versions
