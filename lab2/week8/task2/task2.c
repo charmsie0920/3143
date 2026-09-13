@@ -11,11 +11,19 @@
  * timing methodology are all unchanged, so a hybrid run and a pure-MPI run at
  * the same n differ only by the threading layer and are directly comparable.
  *
- * ---- The three distribution schemes ----------------------------------------
+ * ---- Two levels of partitioning --------------------------------------------
  *
  * The candidates are the odd numbers 3, 5, 7, ... below n, treated as an
  * index space 0 .. num_candidates-1 where candidate j is the number
- * k = 3 + 2j. The schemes differ only in which candidates a rank owns.
+ * k = 3 + 2j.
+ *
+ * LEVEL 1 (processes) splits that index space across ranks, using one of the
+ * three schemes below. LEVEL 2 (threads) splits each rank's share across its
+ * threads using the SAME scheme, one level down. The two levels are the same
+ * rule applied recursively, which is why range_boundary() and
+ * split_boundary() compute the same thing over different intervals.
+ *
+ * The schemes differ only in which candidates a rank owns.
  *
  *   0  BLOCK -- equal-sized contiguous ranges.
  *      Simple, and output is sorted for free. But cost per candidate grows
@@ -29,6 +37,10 @@
  *      else's, so the concatenation Gatherv produces is NOT sorted and the
  *      root must merge p sorted runs afterwards. That merge is serial work
  *      on the root and is measured separately below.
+ *      At the thread level the rank's chunk LIST is split contiguously, not
+ *      round-robin a second time. Each thread therefore still produces an
+ *      ascending run and the rank's concatenated output stays ascending,
+ *      which is what merge_runs() on the root assumes.
  *
  *   2  WEIGHTED -- contiguous ranges sized by estimated cost.
  *      Trial division to sqrt(k) costs about sqrt(k) work per candidate, so
@@ -37,6 +49,34 @@
  *      the same amount of WORK rather than the same COUNT of candidates.
  *      Ranges stay contiguous and ascending, so output is still sorted for
  *      free -- balance without paying for a merge.
+ *
+ *
+ * ---- How the threads produce a sorted local array --------------------------
+ *
+ * task1_mpi.c appends with local_primes[local_count++]. That is a data race
+ * the moment more than one thread runs it, and it would also destroy sorted
+ * order even with an atomic counter, because threads finish candidates out
+ * of order.
+ *
+ * So each worker is given a slice of a scratch array up front and never
+ * touches anyone else's, in three phases:
+ *
+ *   A  each worker searches its own sub-range into its own scratch slice
+ *      and records how many primes it found
+ *   B  the per-worker counts are exclusive-prefix-summed, which yields the
+ *      offset in local_primes at which each worker's primes belong
+ *   C  each worker copies its slice to that offset
+ *
+ * Sorted order falls out for free: sub-ranges are contiguous and ascending
+ * and each worker scans its own in ascending order, so worker i's output is
+ * entirely below worker i+1's. This is the same prefix-sum compaction the
+ * revised Week 4 pthreads and OpenMP versions use, and the same idea as the
+ * Gather / displs / Gatherv sequence one level up -- a prefix sum over
+ * per-worker counts is how every level here avoids a sort.
+ *
+ * Phase C needs a separate scratch array rather than compacting in place:
+ * with in-place moves, worker i+1's destination can overlap worker i's
+ * source region.
  *
  *
  * ---- Timing ----------------------------------------------------------------
@@ -163,6 +203,73 @@ static long range_boundary(int i, int p, long num_candidates, int n, int scheme)
     return num_candidates * i / p;
 }
 
+/* Boundary of thread t's sub-range inside one rank's candidate range
+ * [jlo, jhi). Thread t owns [split_boundary(t), split_boundary(t+1)).
+ *
+ * This is range_boundary() generalised to an interval that does not start at
+ * zero. BLOCK splits the candidate count evenly. WEIGHTED equalises estimated
+ * cost: the work of trial-dividing everything up to k grows as k^1.5, so the
+ * cost of the interval [klo, k) is proportional to k^1.5 - klo^1.5, and
+ * setting that to a t/nt fraction of the whole interval's cost gives
+ *
+ *     k_t = ( klo^1.5 + (t/nt) * (khi^1.5 - klo^1.5) ) ^ (2/3)
+ *
+ * With klo = 3 this collapses to the k_i = n * (i/p)^(2/3) used at the rank
+ * level, so the two levels really are the same rule. */
+static long split_boundary(int t, int nt, long jlo, long jhi, int scheme) {
+
+    if (t <= 0) {
+        return jlo;
+    }
+    if (t >= nt) {
+        return jhi;
+    }
+
+    if (scheme == SCHEME_WEIGHTED) {
+        double klo  = 3.0 + 2.0 * (double) jlo;
+        double khi  = 3.0 + 2.0 * (double) jhi;
+        double lo15 = pow(klo, 1.5);
+        double hi15 = pow(khi, 1.5);
+        double frac = (double) t / (double) nt;
+        double k_t  = pow(lo15 + frac * (hi15 - lo15), 2.0 / 3.0);
+        long   j    = (long) ((k_t - 3.0) / 2.0);
+
+        if (j < jlo) j = jlo;
+        if (j > jhi) j = jhi;
+        return j;
+    }
+
+    return jlo + (jhi - jlo) * t / nt;
+}
+
+/* Upper bound on how many primes lie in [lo, hi). Used to size each thread's
+ * scratch slice without a counting pass over the range.
+ *
+ * prime_count_bound() bounds pi(x) counting up from zero, which is useless
+ * per thread: summing it over the threads over-allocates by roughly the
+ * thread count. Rosser & Schoenfeld also give pi(x) > x/ln x for x >= 17, so
+ * pi(hi) - pi(lo) is strictly below 1.25506 hi/ln hi - lo/ln lo. Below 17
+ * that lower bound does not hold, so fall back to bounding pi(hi) alone.
+ * +2 absorbs the truncation and any floating-point wobble. */
+static long prime_count_bound_range(long lo, long hi) {
+
+    if (hi <= lo) {
+        return 0;
+    }
+    if (lo < 17) {
+        return prime_count_bound(hi) + 2;
+    }
+
+    double upper = 1.25506 * (double) hi / log((double) hi);
+    double lower = (double) lo / log((double) lo);
+    double diff  = upper - lower;
+
+    if (diff < 0.0) {
+        diff = 0.0;
+    }
+    return (long) diff + 2;
+}
+
 /* Merge p ascending runs into one ascending array.
  * segments[displs[r] .. displs[r]+counts[r]) is run r. Simple linear scan
  * over the p run heads: O(total * p). With p at most 32 that is cheaper in
@@ -285,29 +392,91 @@ int main(int argc, char *argv[]) {
     long num_candidates = ((long) n - 2) / 2;
 
     /* ---- Local buffer, sized before the clock starts --------------------
-     * A rank cannot find more primes than it has candidates, so its own
-     * candidate count is a safe capacity; the Rosser-Schoenfeld bound is
-     * tighter for large blocks, so take the smaller. +2 covers rank 0's
-     * extra entry for the prime 2 and leaves slack for empty ranges. */
+     * Sizing is per thread rather than per rank, since each thread needs its
+     * own non-overlapping slice; see the tslice[] loop below. */
     long jlo = 0;
     long jhi = 0;
-    long my_candidates;
+
+    /* Chunk-list bookkeeping, cyclic only: this rank owns chunks
+     * rank, rank+size, rank+2*size, ... Numbering them m = 0, 1, 2, ... turns
+     * the rank's scattered chunks into a contiguous index space that threads
+     * can be handed contiguous blocks of. */
+    long total_chunks = (num_candidates + CHUNK - 1) / CHUNK;
+    long my_chunks    = 0;
 
     if (scheme == SCHEME_CYCLIC) {
-        /* Rank r owns chunks r, r+p, ... Bounding the count is enough here;
-         * an exact count would need a pass over the chunk indices. */
-        my_candidates = num_candidates / size + 2 * CHUNK;
+        if (total_chunks > rank) {
+            my_chunks = (total_chunks - rank + size - 1) / size;
+        }
     } else {
         jlo = range_boundary(rank,     size, num_candidates, n, scheme);
         jhi = range_boundary(rank + 1, size, num_candidates, n, scheme);
-        my_candidates = jhi - jlo;
     }
 
-    long rs_bound = prime_count_bound((long) n);
-    long capacity = (my_candidates < rs_bound ? my_candidates : rs_bound) + 2;
+    /* ---- Level 2: split this rank's share across its threads -------------
+     * Computed up front, before the clock starts, so that once the search
+     * begins each thread can look up its own bounds with no coordination.
+     *
+     * tbounds[] is in candidate-index space for the contiguous schemes, and
+     * in chunk-list index space (m) for cyclic. */
+    long   *tbounds = malloc((size_t) (threads + 1) * sizeof(long));
+    long   *tslice  = malloc((size_t) (threads + 1) * sizeof(long));
+    int    *tcount  = calloc((size_t) threads + 1, sizeof(int));
+
+    if (tbounds == NULL || tslice == NULL || tcount == NULL) {
+        fprintf(stderr, "Rank %d: thread metadata allocation failed.\n", rank);
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    for (int t = 0; t <= threads; t++) {
+        if (scheme == SCHEME_CYCLIC) {
+            tbounds[t] = my_chunks * t / threads;
+        } else {
+            tbounds[t] = split_boundary(t, threads, jlo, jhi, scheme);
+        }
+    }
+
+    /* Scratch slice sizes. A thread can never emit more primes than it has
+     * candidates, nor more than the prime-counting bound over the values it
+     * scans, so the smaller of the two is a safe capacity. tslice[] is the
+     * exclusive prefix sum of those capacities: thread t owns
+     * scratch[tslice[t] .. tslice[t+1]). */
+    tslice[0] = 0;
+
+    for (int t = 0; t < threads; t++) {
+
+        long cand;
+        long klo;
+        long khi;
+
+        if (scheme == SCHEME_CYCLIC) {
+            /* Values touched run from the first chunk this thread owns to the
+             * end of its last. The chunks are strided, so that interval is
+             * wider than the thread's actual candidate set -- which only makes
+             * the bound looser, never wrong. */
+            cand = (tbounds[t + 1] - tbounds[t]) * CHUNK;
+            klo  = 3 + 2 * (rank + tbounds[t] * size) * CHUNK;
+            khi  = (long) n;
+        } else {
+            cand = tbounds[t + 1] - tbounds[t];
+            klo  = 3 + 2 * tbounds[t];
+            khi  = 3 + 2 * tbounds[t + 1];
+        }
+
+        long bound = prime_count_bound_range(klo, khi);
+        long cap   = (cand < bound ? cand : bound);
+
+        tslice[t + 1] = tslice[t] + cap;
+    }
+
+    /* +2 covers rank 0's extra entry for the prime 2 and leaves slack for
+     * empty ranges. */
+    long capacity = tslice[threads] + 2;
 
     int *local_primes = malloc((size_t) capacity * sizeof(int));
-    if (local_primes == NULL) {
+    int *scratch      = malloc((size_t) tslice[threads] * sizeof(int) + 1);
+
+    if (local_primes == NULL || scratch == NULL) {
         fprintf(stderr, "Rank %d: local allocation failed.\n", rank);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
@@ -338,33 +507,72 @@ int main(int argc, char *argv[]) {
         local_primes[local_count++] = 2;
     }
 
-    if (scheme == SCHEME_CYCLIC) {
+    /* Where the threaded output begins: index 1 on rank 0, which already
+     * holds the prime 2, and index 0 everywhere else. */
+    int base = local_count;
 
-        for (long c = rank; c * CHUNK < num_candidates; c += size) {
+    /* ---- Phase A: each worker searches its own sub-range -----------------
+     * Sequential for now -- this loop becomes the OpenMP parallel region in
+     * the next step. Running the real partitioning serially first means any
+     * gap, overlap or overrun shows up here, where there is no concurrency
+     * to confuse the diagnosis. */
+    for (int t = 0; t < threads; t++) {
 
-            long chunk_lo = c * CHUNK;
-            long chunk_hi = chunk_lo + CHUNK;
-            if (chunk_hi > num_candidates) {
-                chunk_hi = num_candidates;
+        int  found = 0;
+        int *mine  = scratch + tslice[t];
+
+        if (scheme == SCHEME_CYCLIC) {
+
+            for (long m = tbounds[t]; m < tbounds[t + 1]; m++) {
+
+                long c        = rank + m * size;
+                long chunk_lo = c * CHUNK;
+                long chunk_hi = chunk_lo + CHUNK;
+
+                if (chunk_hi > num_candidates) {
+                    chunk_hi = num_candidates;
+                }
+
+                for (long j = chunk_lo; j < chunk_hi; j++) {
+                    int k = 3 + 2 * (int) j;
+                    if (is_prime(k)) {
+                        mine[found++] = k;
+                    }
+                }
             }
 
-            for (long j = chunk_lo; j < chunk_hi; j++) {
+        } else {
+
+            for (long j = tbounds[t]; j < tbounds[t + 1]; j++) {
                 int k = 3 + 2 * (int) j;
                 if (is_prime(k)) {
-                    local_primes[local_count++] = k;
+                    mine[found++] = k;
                 }
             }
         }
 
-    } else {
+        tcount[t + 1] = found;
+    }
 
-        for (long j = jlo; j < jhi; j++) {
-            int k = 3 + 2 * (int) j;
-            if (is_prime(k)) {
-                local_primes[local_count++] = k;
-            }
+    /* ---- Phase B: exclusive prefix sum over the per-worker counts -------- */
+    for (int t = 0; t < threads; t++) {
+        tcount[t + 1] += tcount[t];
+    }
+
+    /* ---- Phase C: copy each worker's primes to their final home ----------
+     * tcount[t] is now the number of primes found by workers below t, which
+     * is exactly where worker t's block belongs. */
+    for (int t = 0; t < threads; t++) {
+
+        int found = tcount[t + 1] - tcount[t];
+
+        if (found > 0) {
+            memcpy(local_primes + base + tcount[t], scratch + tslice[t],
+                   (size_t) found * sizeof(int));
         }
     }
+
+    local_count = base + tcount[threads];
 
     double t_search_end = MPI_Wtime();
 
@@ -555,6 +763,10 @@ int main(int argc, char *argv[]) {
     }
 
     free(local_primes);
+    free(scratch);
+    free(tbounds);
+    free(tslice);
+    free(tcount);
 
     MPI_Finalize();
     return 0;
