@@ -55,7 +55,7 @@
  *
  * Build: module load openmpi/4.1.5-gcc-11.2.0-ux65npg
  *        mpicc task2.c -o task2 -O2 -fopenmp -lm
- * Run:   srun ./task2 <n> [scheme 0|1|2] [label]   (inside a SLURM job)
+ * Run:   srun ./task2 <n> <threads> [scheme 0|1|2] [label]   (inside a SLURM job)
  *
  * Bind properly once threads are involved, or the measurements are
  * meaningless -- unbound, every rank's threads land on the same cores:
@@ -84,6 +84,10 @@
  * and the OpenMP schedule(dynamic, 1000) so all three parallel versions
  * use the same granularity. */
 #define CHUNK 1000
+
+/* Upper limit on threads per rank. Bounds the small per-thread arrays and
+ * catches a nonsense command line before it becomes a huge allocation. */
+#define MAX_THREADS 256
 
 #define SCHEME_BLOCK    0
 #define SCHEME_CYCLIC   1
@@ -216,17 +220,19 @@ int main(int argc, char *argv[]) {
     /* ---- Rank 0 reads the arguments, then broadcasts them ---------------
      * n = 0 is the "bad input, everyone stop" signal. Without it one rank
      * would exit while the others blocked forever in the broadcast. */
-    int params[2] = {0, SCHEME_BLOCK};
+    int params[3] = {0, SCHEME_BLOCK, 1};
 
     if (rank == 0) {
-        if (argc < 2 || argc > 4) {
+        if (argc < 3 || argc > 5) {
             fprintf(stderr,
-                    "Usage: %s <n> [scheme 0=block 1=cyclic 2=weighted] [label]\n",
+                    "Usage: %s <n> <threads> "
+                    "[scheme 0=block 1=cyclic 2=weighted] [label]\n",
                     argv[0]);
         } else {
             params[0] = atoi(argv[1]);
-            if (argc == 3) {
-                params[1] = atoi(argv[2]);
+            params[2] = atoi(argv[2]);
+            if (argc >= 4) {
+                params[1] = atoi(argv[3]);
             }
             if (params[0] <= 2) {
                 fprintf(stderr, "n must be greater than 2.\n");
@@ -236,28 +242,45 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "scheme must be 0, 1 or 2.\n");
                 params[0] = 0;
             }
+            if (params[2] < 1 || params[2] > MAX_THREADS) {
+                fprintf(stderr, "threads must be between 1 and %d.\n",
+                        MAX_THREADS);
+                params[0] = 0;
+            }
         }
     }
 
     /* The broadcast is serial work in Amdahl's sense: its cost does not fall
-     * as ranks are added. Timed so it can be counted in the serial fraction. */
+     * as ranks are added. Timed so it can be counted in the serial fraction.
+     *
+     * The thread count rides along with n and the scheme rather than being
+     * re-parsed per rank: every rank must agree on it, because it will decide
+     * how each rank subdivides its own share of the candidates. Ranks
+     * disagreeing here would leave gaps or overlaps in the search. */
     double t_bcast0 = MPI_Wtime();
-    MPI_Bcast(params, 2, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(params, 3, MPI_INT, 0, MPI_COMM_WORLD);
     double t_bcast = MPI_Wtime() - t_bcast0;
 
-    int n      = params[0];
-    int scheme = params[1];
+    int n       = params[0];
+    int scheme  = params[1];
+    int threads = params[2];
 
     /* Only the root prints, so the label needs no broadcast. */
     const char *label = NULL;
-    if (rank == 0 && argc == 4) {
-        label = argv[3];
+    if (rank == 0 && argc == 5) {
+        label = argv[4];
     }
 
     if (n == 0) {
         MPI_Finalize();
         return 1;
     }
+
+    /* Fix the team size now. Later steps compute each thread's share of the
+     * work ahead of time, so the runtime must hand back exactly the number of
+     * threads asked for -- never fewer. */
+    omp_set_dynamic(0);
+    omp_set_num_threads(threads);
 
     long num_candidates = ((long) n - 2) / 2;
 
@@ -501,8 +524,10 @@ int main(int argc, char *argv[]) {
             overhead = 0.0;
         }
 
-        printf("scheme=%s n=%d procs=%d nodes=%d primes=%d\n",
-               scheme_name(scheme), n, size, nodes, total);
+        printf("scheme=%s n=%d procs=%d threads=%d total_workers=%d "
+               "nodes=%d primes=%d\n",
+               scheme_name(scheme), n, size, threads, size * threads,
+               nodes, total);
         printf("  total time      : %.6f s\n", max_total);
         printf("  parallel (search): %.6f s\n", parallel_part);
         printf("  serial parts     : %.6f s\n", serial_part);
@@ -518,9 +543,10 @@ int main(int argc, char *argv[]) {
          * versions so one parser handles every result file.
          * impl,scheme,n,procs,threads,nodes,primes,
          * total,serial,parallel,overhead,imbalance */
-        printf("CSV,mpi,%s,%d,%d,1,%d,%d,%.6f,%.6f,%.6f,%.6f,%.2f\n",
-               label ? label : scheme_name(scheme), n, size, nodes, total,
-               max_total, serial_part, parallel_part, overhead, imbalance);
+        printf("CSV,hybrid,%s,%d,%d,%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.2f\n",
+               label ? label : scheme_name(scheme), n, size, threads, nodes,
+               total, max_total, serial_part, parallel_part, overhead,
+               imbalance);
 
         free(all_names);
         free(all_primes);
