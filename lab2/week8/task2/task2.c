@@ -37,10 +37,11 @@
  *      else's, so the concatenation Gatherv produces is NOT sorted and the
  *      root must merge p sorted runs afterwards. That merge is serial work
  *      on the root and is measured separately below.
- *      At the thread level the rank's chunk LIST is split contiguously, not
- *      round-robin a second time. Each thread therefore still produces an
- *      ascending run and the rank's concatenated output stays ascending,
- *      which is what merge_runs() on the root assumes.
+ *      At the thread level the rank's chunks are handed to threads
+ *      dynamically, one chunk at a time (see below). Splitting the chunk
+ *      list into contiguous per-thread blocks instead would give thread 0
+ *      the cheapest chunks and the last thread the dearest -- BLOCK's
+ *      imbalance again, one level down.
  *
  *   2  WEIGHTED -- contiguous ranges sized by estimated cost.
  *      Trial division to sqrt(k) costs about sqrt(k) work per candidate, so
@@ -58,25 +59,34 @@
  * order even with an atomic counter, because threads finish candidates out
  * of order.
  *
- * So each worker is given a slice of a scratch array up front and never
- * touches anyone else's, in three phases:
+ * So a rank's share is cut into SLOTS: contiguous runs of candidates, each
+ * with its own slice of a scratch array and its own prime count, numbered in
+ * ascending candidate order.
  *
- *   A  each worker searches its own sub-range into its own scratch slice
- *      and records how many primes it found
- *   B  the per-worker counts are exclusive-prefix-summed, which yields the
- *      offset in local_primes at which each worker's primes belong
- *   C  each worker copies its slice to that offset
+ *   BLOCK / WEIGHTED  one slot per thread, bounds from split_boundary(),
+ *                     handed out schedule(static, 1) so thread t owns slot t
+ *   CYCLIC            one slot per chunk the rank owns, handed out
+ *                     schedule(dynamic, 1): a thread that finishes a cheap
+ *                     chunk immediately takes the next one, so no thread
+ *                     idles while its rank still has work -- the same
+ *                     balancing schedule(dynamic) gave the Week 4 OpenMP code
  *
- * Sorted order falls out for free: sub-ranges are contiguous and ascending
- * and each worker scans its own in ascending order, so worker i's output is
- * entirely below worker i+1's. This is the same prefix-sum compaction the
- * revised Week 4 pthreads and OpenMP versions use, and the same idea as the
- * Gather / displs / Gatherv sequence one level up -- a prefix sum over
- * per-worker counts is how every level here avoids a sort.
+ * Then, in three phases:
+ *
+ *   A  threads search slots, each slot into its own scratch slice
+ *   B  the per-slot counts are exclusive-prefix-summed, which yields the
+ *      offset in local_primes at which each slot's primes belong
+ *   C  each slot's primes are copied to that offset, in parallel
+ *
+ * Sorted order falls out for free: slots are ascending and each is scanned
+ * in ascending order, so slot s's output is entirely below slot s+1's. This
+ * is the same prefix-sum compaction the revised Week 4 pthreads and OpenMP
+ * versions use, and the same idea as the Gather / displs / Gatherv sequence
+ * one level up -- a prefix sum over per-worker counts is how every level
+ * here avoids a sort.
  *
  * Phase C needs a separate scratch array rather than compacting in place:
- * with in-place moves, worker i+1's destination can overlap worker i's
- * source region.
+ * with in-place moves, slot s+1's destination can overlap slot s's source.
  *
  *
  * ---- Timing ----------------------------------------------------------------
@@ -270,6 +280,39 @@ static long prime_count_bound_range(long lo, long hi) {
     return (long) diff + 2;
 }
 
+/* Scratch capacity for a slot covering candidate indices [lo, hi): the
+ * smallest of three upper bounds on the primes it can hold.
+ *
+ *   - its candidate count
+ *   - the Rosser-Schoenfeld range bound, tight for wide slots
+ *   - Montgomery & Vaughan (1973): pi(x + y) - pi(x) <= 2y / ln y for y >= 2,
+ *     tight for narrow slots. A cyclic chunk spans y = 2 * CHUNK integers,
+ *     so at most ~527 primes rather than 1000 -- the Rosser-Schoenfeld
+ *     difference is useless there, since it bounds pi(hi) and pi(lo)
+ *     separately and their error terms dwarf a 2000-wide gap. */
+static long slot_capacity(long lo, long hi) {
+
+    long cand = hi - lo;
+    if (cand <= 0) {
+        return 0;
+    }
+
+    long cap = cand;
+
+    long rs = prime_count_bound_range(3 + 2 * lo, 3 + 2 * hi);
+    if (rs < cap) {
+        cap = rs;
+    }
+
+    double y  = 2.0 * (double) cand;
+    long   mv = (long) (2.0 * y / log(y)) + 2;
+    if (mv < cap) {
+        cap = mv;
+    }
+
+    return cap;
+}
+
 /* Merge p ascending runs into one ascending array.
  * segments[displs[r] .. displs[r]+counts[r]) is run r. Simple linear scan
  * over the p run heads: O(total * p). With p at most 32 that is cheaper in
@@ -391,16 +434,12 @@ int main(int argc, char *argv[]) {
 
     long num_candidates = ((long) n - 2) / 2;
 
-    /* ---- Local buffer, sized before the clock starts --------------------
-     * Sizing is per thread rather than per rank, since each thread needs its
-     * own non-overlapping slice; see the tslice[] loop below. */
+    /* ---- Level 1: this rank's share of the candidates --------------------
+     * Contiguous schemes own the candidate range [jlo, jhi). Cyclic owns
+     * chunks rank, rank+size, rank+2*size, ... -- my_chunks of them. */
     long jlo = 0;
     long jhi = 0;
 
-    /* Chunk-list bookkeeping, cyclic only: this rank owns chunks
-     * rank, rank+size, rank+2*size, ... Numbering them m = 0, 1, 2, ... turns
-     * the rank's scattered chunks into a contiguous index space that threads
-     * can be handed contiguous blocks of. */
     long total_chunks = (num_candidates + CHUNK - 1) / CHUNK;
     long my_chunks    = 0;
 
@@ -413,69 +452,59 @@ int main(int argc, char *argv[]) {
         jhi = range_boundary(rank + 1, size, num_candidates, n, scheme);
     }
 
-    /* ---- Level 2: split this rank's share across its threads -------------
-     * Computed up front, before the clock starts, so that once the search
-     * begins each thread can look up its own bounds with no coordination.
-     *
-     * tbounds[] is in candidate-index space for the contiguous schemes, and
-     * in chunk-list index space (m) for cyclic. */
-    long   *tbounds = malloc((size_t) (threads + 1) * sizeof(long));
-    long   *tslice  = malloc((size_t) (threads + 1) * sizeof(long));
-    int    *tcount  = calloc((size_t) threads + 1, sizeof(int));
+    /* ---- Level 2: cut the share into slots -------------------------------
+     * Computed before the clock starts, so once the search begins a thread
+     * only looks bounds up. One slot per chunk for cyclic, one per thread for
+     * the contiguous schemes -- see the header for why. */
+    long nslots = (scheme == SCHEME_CYCLIC) ? my_chunks : threads;
+
+    long   *slot_lo = malloc((size_t) (nslots + 1) * sizeof(long));
+    long   *slot_hi = malloc((size_t) (nslots + 1) * sizeof(long));
+    long   *sslice  = malloc((size_t) (nslots + 1) * sizeof(long));
+    int    *scount  = calloc((size_t) nslots + 1, sizeof(int));
     double *ttime   = calloc((size_t) threads, sizeof(double));
 
-    if (tbounds == NULL || tslice == NULL || tcount == NULL || ttime == NULL) {
-        fprintf(stderr, "Rank %d: thread metadata allocation failed.\n", rank);
+    if (slot_lo == NULL || slot_hi == NULL || sslice == NULL
+        || scount == NULL || ttime == NULL) {
+        fprintf(stderr, "Rank %d: slot metadata allocation failed.\n", rank);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    for (int t = 0; t <= threads; t++) {
+    /* sslice[] is the exclusive prefix sum of the slot capacities: slot s
+     * owns scratch[sslice[s] .. sslice[s+1]). */
+    sslice[0] = 0;
+
+    for (long s = 0; s < nslots; s++) {
+
         if (scheme == SCHEME_CYCLIC) {
-            tbounds[t] = my_chunks * t / threads;
+            slot_lo[s] = (rank + s * size) * CHUNK;
+            slot_hi[s] = slot_lo[s] + CHUNK;
+            if (slot_hi[s] > num_candidates) {
+                slot_hi[s] = num_candidates;
+            }
         } else {
-            tbounds[t] = split_boundary(t, threads, jlo, jhi, scheme);
+            slot_lo[s] = split_boundary((int) s,     threads, jlo, jhi, scheme);
+            slot_hi[s] = split_boundary((int) s + 1, threads, jlo, jhi, scheme);
         }
+
+        sslice[s + 1] = sslice[s] + slot_capacity(slot_lo[s], slot_hi[s]);
     }
 
-    /* Scratch slice sizes. A thread can never emit more primes than it has
-     * candidates, nor more than the prime-counting bound over the values it
-     * scans, so the smaller of the two is a safe capacity. tslice[] is the
-     * exclusive prefix sum of those capacities: thread t owns
-     * scratch[tslice[t] .. tslice[t+1]). */
-    tslice[0] = 0;
-
-    for (int t = 0; t < threads; t++) {
-
-        long cand;
-        long klo;
-        long khi;
-
-        if (scheme == SCHEME_CYCLIC) {
-            /* Values touched run from the first chunk this thread owns to the
-             * end of its last. The chunks are strided, so that interval is
-             * wider than the thread's actual candidate set -- which only makes
-             * the bound looser, never wrong. */
-            cand = (tbounds[t + 1] - tbounds[t]) * CHUNK;
-            klo  = 3 + 2 * (rank + tbounds[t] * size) * CHUNK;
-            khi  = (long) n;
-        } else {
-            cand = tbounds[t + 1] - tbounds[t];
-            klo  = 3 + 2 * tbounds[t];
-            khi  = 3 + 2 * tbounds[t + 1];
-        }
-
-        long bound = prime_count_bound_range(klo, khi);
-        long cap   = (cand < bound ? cand : bound);
-
-        tslice[t + 1] = tslice[t] + cap;
+    /* Static, chunk 1, for one slot per thread: slot t goes to thread t.
+     * Dynamic, chunk 1, for one slot per chunk. Set here, so the single
+     * schedule(runtime) loop below serves every scheme. */
+    if (scheme == SCHEME_CYCLIC) {
+        omp_set_schedule(omp_sched_dynamic, 1);
+    } else {
+        omp_set_schedule(omp_sched_static, 1);
     }
 
     /* +2 covers rank 0's extra entry for the prime 2 and leaves slack for
      * empty ranges. */
-    long capacity = tslice[threads] + 2;
+    long capacity = sslice[nslots] + 2;
 
     int *local_primes = malloc((size_t) capacity * sizeof(int));
-    int *scratch      = malloc((size_t) tslice[threads] * sizeof(int) + 1);
+    int *scratch      = malloc((size_t) sslice[nslots] * sizeof(int) + 1);
 
     if (local_primes == NULL || scratch == NULL) {
         fprintf(stderr, "Rank %d: local allocation failed.\n", rank);
@@ -514,81 +543,56 @@ int main(int argc, char *argv[]) {
 
     #pragma omp parallel num_threads(threads)
     {
-        int t = omp_get_thread_num();
-
         /* omp_get_wtime, not MPI_Wtime: under MPI_THREAD_FUNNELED only the
          * master thread may call into MPI. Both are wall-clock, so the two
          * measurements stay comparable. */
         double t_thread0 = omp_get_wtime();
 
-        int  found = 0;
-        int *mine  = scratch + tslice[t];
+        /* ---- Phase A: search the slots -----------------------------------
+         * Each slot writes only its own scratch slice and its own count, so
+         * there is no lock and no atomic. nowait, so the timer below records
+         * when THIS thread ran out of work rather than when the slowest did;
+         * the end of the parallel region is still a barrier. */
+        #pragma omp for schedule(runtime) nowait
+        for (long s = 0; s < nslots; s++) {
 
-        /* ---- Phase A: search this thread's own sub-range ----------------
-         * Every write lands in this thread's private slice, so there is no
-         * lock, no atomic, and no false sharing on the output. */
-        if (scheme == SCHEME_CYCLIC) {
+            int *mine  = scratch + sslice[s];
+            int  found = 0;
 
-            for (long m = tbounds[t]; m < tbounds[t + 1]; m++) {
-
-                long c        = rank + m * size;
-                long chunk_lo = c * CHUNK;
-                long chunk_hi = chunk_lo + CHUNK;
-
-                if (chunk_hi > num_candidates) {
-                    chunk_hi = num_candidates;
-                }
-
-                for (long j = chunk_lo; j < chunk_hi; j++) {
-                    int k = 3 + 2 * (int) j;
-                    if (is_prime(k)) {
-                        mine[found++] = k;
-                    }
-                }
-            }
-
-        } else {
-
-            for (long j = tbounds[t]; j < tbounds[t + 1]; j++) {
+            for (long j = slot_lo[s]; j < slot_hi[s]; j++) {
                 int k = 3 + 2 * (int) j;
                 if (is_prime(k)) {
                     mine[found++] = k;
                 }
             }
+
+            scount[s + 1] = found;
         }
 
-        tcount[t + 1] = found;
+        ttime[omp_get_thread_num()] = omp_get_wtime() - t_thread0;
+    }
 
-        /* Recorded before the barrier, so it measures this thread's own
-         * search and not the time it then spends waiting for the slowest. */
-        ttime[t] = omp_get_wtime() - t_thread0;
+    /* ---- Phase B: exclusive prefix sum over the per-slot counts ----------
+     * Serial, but only nslots additions -- tens of thousands at most, which
+     * is microseconds against a search measured in seconds. */
+    for (long s = 0; s < nslots; s++) {
+        scount[s + 1] += scount[s];
+    }
 
-        /* ---- Phase B: exclusive prefix sum over the per-thread counts ----
-         * Nobody may read tcount[] until every thread has published its own,
-         * hence the barrier. omp single then elects one thread for the O(t)
-         * scan, and the implicit barrier at the end of single stops the
-         * others reading the offsets before they are written. */
-        #pragma omp barrier
-
-        #pragma omp single
-        {
-            for (int i = 0; i < threads; i++) {
-                tcount[i + 1] += tcount[i];
-            }
-        }
-
-        /* ---- Phase C: copy this thread's primes to their final home ------
-         * tcount[t] is now the number of primes found by threads below t,
-         * which is exactly where this thread's block belongs. Each thread
-         * still writes a disjoint destination range, so this is safe to run
-         * concurrently. */
+    /* ---- Phase C: copy each slot's primes to their final home ------------
+     * scount[s] is now the number of primes in the slots below s, which is
+     * exactly where slot s's block belongs. Destinations are disjoint, so
+     * the copies run concurrently. */
+    #pragma omp parallel for num_threads(threads) schedule(static)
+    for (long s = 0; s < nslots; s++) {
+        int found = scount[s + 1] - scount[s];
         if (found > 0) {
-            memcpy(local_primes + base + tcount[t], mine,
+            memcpy(local_primes + base + scount[s], scratch + sslice[s],
                    (size_t) found * sizeof(int));
         }
     }
 
-    local_count = base + tcount[threads];
+    local_count = base + scount[nslots];
 
     double t_search_end = MPI_Wtime();
 
@@ -805,9 +809,10 @@ int main(int argc, char *argv[]) {
 
     free(local_primes);
     free(scratch);
-    free(tbounds);
-    free(tslice);
-    free(tcount);
+    free(slot_lo);
+    free(slot_hi);
+    free(sslice);
+    free(scount);
     free(ttime);
 
     MPI_Finalize();
