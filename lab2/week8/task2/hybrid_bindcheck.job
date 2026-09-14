@@ -1,0 +1,49 @@
+#!/bin/bash
+#SBATCH --job-name=hybrid_place
+#SBATCH --time=00:03:00
+#SBATCH --mem=8G
+#SBATCH --nodes=1
+#SBATCH --ntasks=4
+#SBATCH --cpus-per-task=4
+#SBATCH --partition=defq
+
+# Thread placement check, run before any performance job.
+#
+# CAAS's Slurm does not bind tasks to cores: with --cpu-bind=cores every rank
+# still sees all 16 CPUs. Pinning threads with OMP_PROC_BIND/OMP_PLACES on top
+# of that is harmful -- every rank pins its threads to the SAME first cores,
+# 16 threads on 4 cores. So threads are left unpinned, as in the CAAS hybrid
+# template and in every Task 1 run, and the Linux scheduler spreads them.
+#
+# This job checks that the spreading actually happens, two ways:
+#
+#   1. Snapshot: during a 4x4 run, count how many distinct CPUs the 16 threads
+#      are sitting on. Expect close to 16 distinct CPUs, not 4.
+#   2. Scaling: search time at 1x4, 2x4, 4x4. If no cores are shared, each
+#      doubling of ranks roughly halves the search time (about 4x from 1x4
+#      to 4x4). A much smaller ratio means threads are piling up.
+#
+# Submit with: sbatch hybrid_bindcheck.job
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+
+echo "=== 1. Where the 16 threads of a 4x4 run are sitting ==="
+# n = 2*10^8 keeps a 4x4 run busy for several seconds, so the snapshot taken
+# after 3 s lands in the middle of the search rather than after it.
+srun --ntasks=4 --cpus-per-task=4 ./task2_hybrid 200000000 4 1 > /dev/null &
+RUN=$!
+sleep 3
+echo "threads per CPU (count, cpu):"
+ps -eLo psr,comm | awk '$2 == "task2_hybrid" { print $1 }' | sort -n | uniq -c
+echo "distinct CPUs in use: $(ps -eLo psr,comm | awk '$2 == "task2_hybrid" { print $1 }' | sort -u | wc -l)"
+wait $RUN
+echo
+
+echo "=== 2. Search time as ranks are added, 4 threads each, n = 30,000,000 ==="
+for P in 1 2 4; do
+    T_SEARCH=$(srun --ntasks=$P --cpus-per-task=4 ./task2_hybrid 30000000 4 1 \
+               | awk '/parallel \(search\)/ { print $3 }')
+    echo "${P}x4  search = ${T_SEARCH} s"
+done

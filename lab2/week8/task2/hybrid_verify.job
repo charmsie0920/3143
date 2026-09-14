@@ -1,0 +1,67 @@
+#!/bin/bash
+#SBATCH --job-name=hybrid_verify
+#SBATCH --time=00:08:00
+#SBATCH --mem=8G
+#SBATCH --nodes=2
+#SBATCH --ntasks=16
+#SBATCH --ntasks-per-node=8
+#SBATCH --cpus-per-task=1
+#SBATCH --partition=defq
+
+# Correctness check for the hybrid version, across two nodes. Every scheme, at
+# a mix of (procs x threads) shapes, must match the serial output exactly. Odd
+# rank counts (3, 7) and odd thread counts (3) are where off-by-one errors in
+# the two-level boundaries show.
+#
+# This checks OUTPUT only. Steps here ask for more CPUs per task than the job
+# allocates, so Slurm warns and does not bind cores -- harmless for
+# correctness, fatal for timing. Binding is checked by hybrid_bindcheck.job.
+#
+# Build first on the head node (./task2 is already the Week 4 pthreads binary):
+#   module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+#   mpicc task2.c -o task2_hybrid -O2 -fopenmp -lm
+#
+# Submit with: sbatch hybrid_verify.job
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+N=1000000
+
+echo "Generating serial reference for n = $N"
+./task1 $N > /dev/null
+mv output.txt serial_reference.txt
+echo "Reference has $(wc -l < serial_reference.txt) primes"
+echo
+
+FAILURES=0
+
+for SCHEME in 0 1 2; do
+    case $SCHEME in
+        0) NAME="block   " ;;
+        1) NAME="cyclic  " ;;
+        2) NAME="weighted" ;;
+    esac
+
+    # Each shape must fit 8 CPUs per node: a task's threads cannot span nodes.
+    for SHAPE in 1x1 1x3 1x8 2x4 2x8 3x2 4x3 6x2 7x1; do
+        P=${SHAPE%x*}
+        T=${SHAPE#*x}
+
+        rm -f output_hybrid.txt
+        srun --ntasks=$P --cpus-per-task=$T ./task2_hybrid $N $T $SCHEME > /dev/null
+
+        if diff -q serial_reference.txt output_hybrid.txt > /dev/null 2>&1; then
+            echo "$NAME ${P}x${T}  MATCH"
+        else
+            echo "$NAME ${P}x${T}  ***MISMATCH***"
+            FAILURES=$((FAILURES + 1))
+        fi
+    done
+    echo
+done
+
+if [ $FAILURES -eq 0 ]; then
+    echo "All schemes correct. Ready for performance runs."
+else
+    echo "$FAILURES failure(s) -- fix before measuring anything."
+fi
