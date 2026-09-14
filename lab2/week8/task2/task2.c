@@ -92,8 +92,9 @@
  * ---- Timing ----------------------------------------------------------------
  *
  * The timed region matches the revised Week 4 versions exactly: it starts
- * after buffers are allocated and ends when the sorted list exists in memory
- * on the root. File I/O is excluded.
+ * after buffers are allocated and ends when the sorted list has been written
+ * to the output file. Writing the file is serial work on the root, so it is
+ * also reported on its own and counted in Amdahl's serial fraction.
  *
  * Parallel runtime is the MAXIMUM over ranks, not rank 0's own time -- the
  * job is not finished until the slowest rank is finished. MPI_Reduce with
@@ -311,6 +312,48 @@ static long slot_capacity(long lo, long hi) {
     }
 
     return cap;
+}
+
+/* Write primes one per line to path. fprintf re-parses its format string for
+ * every number; formatting the digits by hand into one buffer and issuing a
+ * single fwrite gives byte-identical output without that per-number cost.
+ * The same writer is used in every version, so the file write costs the
+ * same everywhere and the speedups stay comparable. Returns 0 on success. */
+static int write_primes(const char *path, const int *primes, int count) {
+
+    /* A positive int has at most 10 digits, plus the newline. */
+    char *buf = malloc((size_t) count * 11 + 1);
+    if (buf == NULL) {
+        return -1;
+    }
+
+    char *p = buf;
+    for (int i = 0; i < count; i++) {
+        char     digits[10];
+        int      len = 0;
+        unsigned v   = (unsigned) primes[i];
+        do {
+            digits[len++] = (char) ('0' + v % 10);
+            v /= 10;
+        } while (v > 0);
+        while (len > 0) {
+            *p++ = digits[--len];
+        }
+        *p++ = '\n';
+    }
+
+    FILE *fp = fopen(path, "w");
+    if (fp == NULL) {
+        free(buf);
+        return -1;
+    }
+
+    size_t bytes   = (size_t) (p - buf);
+    size_t written = fwrite(buf, 1, bytes, fp);
+    int    closed  = fclose(fp);
+
+    free(buf);
+    return (written == bytes && closed == 0) ? 0 : -1;
 }
 
 /* Merge p ascending runs into one ascending array.
@@ -736,22 +779,22 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        /* ---- File output -------------------------------------------------
+         * Serial work on the root, and part of what the user waits for, so
+         * it is timed and added to the total below. */
+        double t_write0 = MPI_Wtime();
+
         if (n < 100) {
             for (int i = 0; i < total; i++) {
                 printf("%d ", all_primes[i]);
             }
             printf("\n");
-        } else {
-            FILE *fp = fopen(OUTPUT_FILE, "w");
-            if (fp == NULL) {
-                fprintf(stderr, "Error: could not open %s.\n", OUTPUT_FILE);
-                MPI_Abort(MPI_COMM_WORLD, 1);
-            }
-            for (int i = 0; i < total; i++) {
-                fprintf(fp, "%d\n", all_primes[i]);
-            }
-            fclose(fp);
+        } else if (write_primes(OUTPUT_FILE, all_primes, total) != 0) {
+            fprintf(stderr, "Error: could not write %s.\n", OUTPUT_FILE);
+            MPI_Abort(MPI_COMM_WORLD, 1);
         }
+
+        double t_write = MPI_Wtime() - t_write0;
 
         /* Imbalance: 0% means every rank finished searching together, which
          * is the ideal. A large value means ranks sat idle waiting. */
@@ -762,16 +805,17 @@ int main(int argc, char *argv[]) {
 
         /* ---- Phase accounting for Amdahl's Law ---------------------------
          * parallel : the search, which divides by procs * threads
-         * serial   : broadcast + prefix sum + merge -- work whose cost does
-         *            NOT fall as ranks are added
+         * serial   : broadcast + prefix sum + merge + file write -- work whose
+         *            cost does NOT fall as ranks or threads are added
          * overhead : the collective communication, which actually GROWS with
          *            the process count and is the term Amdahl does not model
          *
          * Anything unaccounted for (barrier waits, scheduling jitter) is
          * folded into overhead so the three always sum to the total. */
-        double serial_part   = t_bcast + t_prefix + my_merge;
+        double end_to_end    = max_total + t_write;
+        double serial_part   = t_bcast + t_prefix + my_merge + t_write;
         double parallel_part = max_search;
-        double overhead      = max_total - serial_part - parallel_part;
+        double overhead      = end_to_end - serial_part - parallel_part;
         if (overhead < 0.0) {
             overhead = 0.0;
         }
@@ -780,12 +824,13 @@ int main(int argc, char *argv[]) {
                "nodes=%d primes=%d\n",
                scheme_name(scheme), n, size, threads, size * threads,
                nodes, total);
-        printf("  total time      : %.6f s\n", max_total);
+        printf("  total time      : %.6f s  (incl. file write)\n", end_to_end);
         printf("  parallel (search): %.6f s\n", parallel_part);
         printf("  serial parts     : %.6f s\n", serial_part);
         printf("    broadcast      : %.6f s\n", t_bcast);
         printf("    prefix sum     : %.6f s\n", t_prefix);
         printf("    merge          : %.6f s\n", my_merge);
+        printf("    file write     : %.6f s\n", t_write);
         printf("  overhead (comm)  : %.6f s\n", overhead);
         printf("    collectives    : %.6f s\n", max_comm);
         printf("  search (fastest) : %.6f s\n", min_search);
@@ -795,11 +840,11 @@ int main(int argc, char *argv[]) {
         /* Unified CSV, same column layout as the serial, pthreads and OpenMP
          * versions so one parser handles every result file.
          * impl,scheme,n,procs,threads,nodes,primes,
-         * total,serial,parallel,overhead,imbalance */
-        printf("CSV,hybrid,%s,%d,%d,%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.2f\n",
+         * total,serial,parallel,overhead,imbalance,write */
+        printf("CSV,hybrid,%s,%d,%d,%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.2f,%.6f\n",
                label ? label : scheme_name(scheme), n, size, threads, nodes,
-               total, max_total, serial_part, parallel_part, overhead,
-               imbalance);
+               total, end_to_end, serial_part, parallel_part, overhead,
+               imbalance, t_write);
 
         free(all_names);
         free(all_primes);
