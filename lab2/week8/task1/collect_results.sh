@@ -12,7 +12,9 @@
 
 OUT=results.csv
 
-echo "impl,scheme,n,procs,threads,nodes,primes,total_s,serial_s,parallel_s,overhead_s,imbalance_pct" > $OUT
+# write_s is the file-write time. Runs from before it was added have no value
+# there; analyse.py flags them, since their totals exclude the write.
+echo "impl,scheme,n,procs,threads,nodes,primes,total_s,serial_s,parallel_s,overhead_s,imbalance_pct,write_s" > $OUT
 
 cat slurm-*.out 2>/dev/null | grep '^CSV,' | sed 's/^CSV,//' >> $OUT
 

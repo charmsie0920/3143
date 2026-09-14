@@ -40,13 +40,29 @@ def load(path):
                 "parallel": float(r["parallel_s"]),
                 "overhead": float(r["overhead_s"]),
                 "imbalance": float(r["imbalance_pct"]),
+                # None for runs from before the file write was timed: their
+                # total excludes the write, so they are not comparable with
+                # runs whose total includes it.
+                "write": (float(r["write_s"])
+                          if r.get("write_s") not in (None, "") else None),
             })
+            # Hybrid runs with the same total workers but a different split
+            # (2x8 vs 4x4) are different experiments. Folding the process
+            # count into the scheme keeps them apart, and makes each Amdahl
+            # table below a fixed-procs, increasing-threads series.
+            if rows[-1]["impl"] == "hybrid":
+                rows[-1]["scheme"] += f"/p{rows[-1]['procs']}"
     return rows
 
 
 def parallelism(r):
-    """Degree of parallelism: MPI ranks for mpi, threads for the rest."""
-    return r["procs"] if r["impl"] == "mpi" else r["threads"]
+    """Degree of parallelism: MPI ranks for mpi, ranks x threads for hybrid,
+    threads for the rest."""
+    if r["impl"] == "mpi":
+        return r["procs"]
+    if r["impl"] == "hybrid":
+        return r["procs"] * r["threads"]
+    return r["threads"]
 
 
 def check(rows):
@@ -77,7 +93,10 @@ def summarise(rows):
                   "lo": min(x["total"] for x in rs),
                   "hi": max(x["total"] for x in rs),
                   "serial": med("serial"), "parallel": med("parallel"),
-                  "overhead": med("overhead"), "imbalance": med("imbalance")}
+                  "overhead": med("overhead"), "imbalance": med("imbalance"),
+                  "write": (statistics.median(x["write"] for x in rs)
+                            if all(x["write"] is not None for x in rs)
+                            else None)}
     return out
 
 
@@ -106,6 +125,13 @@ def main():
 
     print(f"Loaded {len(rows)} runs from {path}\n")
     check(rows)
+
+    legacy = sum(1 for r in rows if r["write"] is None)
+    if 0 < legacy < len(rows):
+        print(f"WARNING: {legacy} of {len(rows)} runs predate file-write timing.")
+        print("Their totals exclude the write and are not comparable with the")
+        print("rest. Delete those slurm-*.out files and re-run them.\n")
+
     s = summarise(rows)
 
     serial_base = {k[2]: v["total"] for k, v in s.items() if k[0] == "serial"}
@@ -149,35 +175,59 @@ def main():
     print("=" * 92)
     print("Amdahl's Law: measured serial fraction vs actual speedup")
     print("=" * 92)
-    print("f is measured from the phases that do NOT scale with processor")
-    print("count (broadcast, prefix sum, merge), taken at the smallest")
-    print("parallelism available for that implementation and scheme.\n")
+    print("f = time in the phases that do NOT scale with processor count")
+    print("(broadcast, prefix sum, merge, file write), divided by the SERIAL")
+    print("program's runtime at the same n -- Amdahl's f is a fraction of the")
+    print("one-worker runtime, not of a run that is already parallel.\n")
 
-    for (impl, scheme) in sorted({(k[0], k[1]) for k in s
-                                  if k[0] != "serial" and "weak" not in k[1]}):
-        for n in sorted({k[2] for k in s if k[0] == impl and k[1] == scheme}):
-            keys = sorted([k for k in s if k[0] == impl and k[1] == scheme
-                           and k[2] == n and k[4] == 1], key=lambda k: k[3])
-            if len(keys) < 2:
+    # One series per (title, n), single-node runs only. Hybrid runs appear in
+    # two series, because graph 7 needs both directions:
+    #   hybrid/<scheme>/p<P>  procs fixed, threads increasing
+    #   hybrid/<scheme>/t<T>  threads fixed, procs increasing
+    # In both, the x axis is total workers = procs * threads.
+    series = defaultdict(list)
+    for k, v in s.items():
+        impl, scheme, n, par, nodes = k
+        if impl == "serial" or "weak" in scheme or nodes != 1:
+            continue
+        series[(f"{impl}/{scheme}", n)].append((par, v))
+        if impl == "hybrid":
+            base_scheme, procs = scheme.rsplit("/p", 1)
+            threads = par // int(procs)
+            series[(f"hybrid/{base_scheme}/t{threads}", n)].append((par, v))
+
+    for (title, n) in sorted(series):
+        points = sorted(series[(title, n)], key=lambda pv: pv[0])
+        if len(points) < 2:
+            continue
+        base = serial_base.get(n)
+        p0, v0 = points[0]
+
+        # The serial-part time is measured at the smallest parallelism in the
+        # series, which for hybrid is already several workers. Dividing by
+        # THAT run's total would inflate f by roughly p0, so divide by the
+        # one-worker time instead: the serial program's runtime when there is
+        # one, otherwise the one-worker time Amdahl itself implies,
+        # serial + p0 * parallel.
+        if base:
+            one_worker = base
+        else:
+            one_worker = v0["serial"] + p0 * (v0["total"] - v0["serial"])
+        f = v0["serial"] / one_worker if one_worker > 0 else 0.0
+
+        print(f"{title}  n={n:,}   measured f = {f:.6f}")
+        print(f"  {'p':>4}{'actual':>10}{'amdahl':>10}{'gap':>9}"
+              f"{'karp-flatt e':>15}")
+        for p, v in points:
+            if not base or v["total"] <= 0:
                 continue
-            base = serial_base.get(n)
-            v0 = s[keys[0]]
-            f = v0["serial"] / v0["total"] if v0["total"] > 0 else 0.0
-
-            print(f"{impl}/{scheme}  n={n:,}   measured f = {f:.6f}")
-            print(f"  {'p':>4}{'actual':>10}{'amdahl':>10}{'gap':>9}"
-                  f"{'karp-flatt e':>15}")
-            for k in keys:
-                p, v = k[3], s[k]
-                if not base or v["total"] <= 0:
-                    continue
-                act = base / v["total"]
-                th = amdahl(f, p)
-                e = karp_flatt(act, p)
-                e_s = f"{e:.4f}" if e is not None else "-"
-                print(f"  {p:>4}{act:>9.2f}x{th:>9.2f}x"
-                      f"{100*(th-act)/th:>8.0f}%{e_s:>15}")
-            print()
+            act = base / v["total"]
+            th = amdahl(f, p)
+            e = karp_flatt(act, p)
+            e_s = f"{e:.4f}" if e is not None else "-"
+            print(f"  {p:>4}{act:>9.2f}x{th:>9.2f}x"
+                  f"{100*(th-act)/th:>8.0f}%{e_s:>15}")
+        print()
 
     print("Reading the table: if actual tracks Amdahl, the serial fraction")
     print("explains the loss. If actual falls short AND Karp-Flatt e rises")
@@ -213,7 +263,7 @@ def main():
     print("=" * 92)
     print("Implementation comparison at matched parallelism (for graphs 1-3)")
     print("=" * 92)
-    impls = ["serial", "pthreads", "openmp", "mpi"]
+    impls = ["serial", "pthreads", "openmp", "mpi", "hybrid"]
     pars = sorted({k[3] for k in strong if k[4] == 1})
     for n in sorted({k[2] for k in strong}):
         base = serial_base.get(n)
@@ -249,7 +299,7 @@ def main():
     found = False
     for k, v in sorted(s.items()):
         impl, scheme, n, par, nodes = k
-        if nodes != 1 or impl != "mpi":
+        if nodes != 1 or impl not in ("mpi", "hybrid"):
             continue
         two = s.get((impl, scheme, n, par, 2))
         if two:
@@ -268,7 +318,8 @@ def main():
         w = csv.writer(f)
         w.writerow(["impl", "scheme", "n", "parallelism", "nodes", "reps",
                     "median_s", "min_s", "max_s", "speedup", "efficiency_pct",
-                    "serial_s", "overhead_s", "imbalance_pct", "karp_flatt_e"])
+                    "serial_s", "overhead_s", "imbalance_pct", "karp_flatt_e",
+                    "write_s"])
         for k, v in sorted(s.items()):
             impl, scheme, n, par, nodes = k
             base = serial_base.get(n)
@@ -280,7 +331,8 @@ def main():
                         f"{100*sp/par:.2f}" if sp else "",
                         f"{v['serial']:.6f}", f"{v['overhead']:.6f}",
                         f"{v['imbalance']:.2f}",
-                        f"{e:.4f}" if e is not None else ""])
+                        f"{e:.4f}" if e is not None else "",
+                        f"{v['write']:.6f}" if v["write"] is not None else ""])
     print("Wrote summary.csv for plotting.")
 
 
