@@ -105,12 +105,17 @@
  * total prime count must fit in an int. Fine to around n = 10^9.
  *
  * Build: module load openmpi/4.1.5-gcc-11.2.0-ux65npg
- *        mpicc task2.c -o task2 -O2 -fopenmp -lm
- * Run:   srun ./task2 <n> <threads> [scheme 0|1|2] [label]   (inside a SLURM job)
+ *        mpicc task2.c -o task2_hybrid -O2 -fopenmp -lm
+ * Run:   srun ./task2_hybrid <n> <threads> [scheme 0|1|2] [label]   (inside a SLURM job)
  *
- * Bind properly once threads are involved, or the measurements are
- * meaningless -- unbound, every rank's threads land on the same cores:
- *        mpirun --map-by socket:PE=<threads> --bind-to core -np <p> ./task2 ...
+ * On CAAS, allocate the job in the shape it runs, as in the MPI + OpenMP
+ * template, and do NOT pin threads:
+ *        #SBATCH --ntasks=<p> --cpus-per-task=<threads>
+ *        export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+ *        srun ./task2_hybrid <n> <threads> ...
+ * CAAS's Slurm does not bind ranks to cores, so every rank sees all of the
+ * node's CPUs. OMP_PROC_BIND/OMP_PLACES then pins every rank's threads onto
+ * the SAME first cores; left unpinned, the Linux scheduler spreads them.
  *
  * The optional label replaces the scheme name in the CSV output. It exists so
  * weak-scaling runs can be tagged (e.g. "cyclic-weak") and kept separate from
