@@ -1,0 +1,64 @@
+#!/bin/bash
+#SBATCH --job-name=hybrid_1node
+#SBATCH --time=00:09:30
+#SBATCH --mem=16G
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=2
+#SBATCH --partition=defq
+
+# (procs x threads) sweep on a SINGLE node, n = 10^8. The data behind
+# presentation graphs 4, 5 and 7:
+#
+#   graph 4 -- fix procs, increase threads, compare against task1_mpi at the
+#              same procs (sweep_1node.job already has those rows)
+#   graph 5 -- same TOTAL workers, hybrid vs OpenMP (threads.job has OpenMP)
+#   graph 7 -- empirical vs Amdahl, per procs, as threads increase
+#
+# ONE THREAD COUNT PER SUBMISSION, following the CAAS MPI + OpenMP template:
+# the job is allocated as --ntasks x --cpus-per-task, and every run inside it
+# uses that many threads with P = 1, 2, 4, ... up to --ntasks ranks. A step
+# asking for more CPUs per task than the job was allocated is refused with a
+# warning, so the shape has to match. The #SBATCH shape above is only the
+# default; override it on the command line:
+#
+#   sbatch --ntasks=8 --cpus-per-task=2  --export=ALL,SCHEME=1 hybrid_sweep_1node.job  # 1x2 2x2 4x2 8x2   ~3 min
+#   sbatch --ntasks=4 --cpus-per-task=4  --export=ALL,SCHEME=1 hybrid_sweep_1node.job  # 1x4 2x4 4x4       ~1.5 min
+#   sbatch --ntasks=2 --cpus-per-task=8  --export=ALL,SCHEME=1 hybrid_sweep_1node.job  # 1x8 2x8           ~1 min
+#   sbatch --ntasks=1 --cpus-per-task=16 --export=ALL,SCHEME=1 hybrid_sweep_1node.job  # 1x16              ~0.5 min
+#
+# T = 1 (pure MPI ranks) is covered by sweep_1node.job from Task 1.
+# Repeat with SCHEME=2 (weighted), and SCHEME=0 (block) if time allows.
+#
+# Threads are NOT pinned: CAAS's Slurm does not bind tasks to cores, and
+# OMP_PROC_BIND would pin every rank's threads onto the same first cores.
+# hybrid_bindcheck.job confirms the scheduler spreads them.
+#
+# One running job per user: wait for each to finish. squeue -u ${USER}
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+
+N=100000000
+REPS=3
+SCHEME=${SCHEME:-1}
+T=$SLURM_CPUS_PER_TASK
+PMAX=$SLURM_NTASKS
+
+echo "Hybrid single-node sweep: n=$N scheme=$SCHEME threads=$T max procs=$PMAX reps=$REPS"
+echo "Node: $(hostname)"
+echo
+
+for P in 1 2 4 8 16; do
+    if [ $P -gt $PMAX ]; then
+        continue
+    fi
+    for REP in $(seq 1 $REPS); do
+        echo "--- p=$P t=$T rep=$REP ---"
+        srun --ntasks=$P --cpus-per-task=$T ./task2_hybrid $N $T $SCHEME
+    done
+done
+
+echo
+echo "Sweep complete."

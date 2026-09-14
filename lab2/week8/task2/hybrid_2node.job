@@ -1,0 +1,58 @@
+#!/bin/bash
+#SBATCH --job-name=hybrid_2node
+#SBATCH --time=00:09:30
+#SBATCH --mem=16G
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=8
+#SBATCH --cpus-per-task=2
+#SBATCH --partition=defq
+
+# Hybrid across TWO nodes, n = 10^8 -- the cluster part of the rubric.
+#
+# As in hybrid_sweep_1node.job, one thread count per submission, allocated in
+# the CAAS template's shape (--ntasks-per-node x --cpus-per-task, two nodes).
+# Each submission runs two shapes, for all three schemes:
+#
+#   all 32 cores   : 16/T ranks on each node
+#                    past 16 cores OpenMP alone cannot follow; compare against
+#                    task1_mpi p=32 (sweep_2node32.job)
+#   16 cores, split: 8/T ranks on each node
+#                    same shape as a single-node run; the difference is the
+#                    gigabit network between the two halves
+#
+#   sbatch --ntasks-per-node=8 --cpus-per-task=2  hybrid_2node.job   # 16x2,  8x2
+#   sbatch --ntasks-per-node=4 --cpus-per-task=4  hybrid_2node.job   #  8x4,  4x4
+#   sbatch --ntasks-per-node=2 --cpus-per-task=8  hybrid_2node.job   #  4x8,  2x8
+#   sbatch --ntasks-per-node=1 --cpus-per-task=16 hybrid_2node.job   #  2x16
+#
+# Threads are not pinned; see hybrid_bindcheck.job.
+# Check that every CSV line says nodes=2, or the placement did not happen.
+
+module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+
+N=100000000
+REPS=3
+T=$SLURM_CPUS_PER_TASK
+PPN=$SLURM_NTASKS_PER_NODE
+
+echo "Hybrid two-node runs: n=$N threads=$T ranks per node=$PPN reps=$REPS"
+echo
+
+for SCHEME in 1 2 0; do
+    for PER_NODE in $PPN $((PPN / 2)); do
+        if [ $PER_NODE -lt 1 ]; then
+            continue
+        fi
+        P=$((2 * PER_NODE))
+        for REP in $(seq 1 $REPS); do
+            echo "--- scheme=$SCHEME ${P}x${T} rep=$REP ---"
+            srun --nodes=2 --ntasks=$P --ntasks-per-node=$PER_NODE \
+                 --cpus-per-task=$T ./task2_hybrid $N $T $SCHEME
+        done
+    done
+done
+
+echo
+echo "Two-node hybrid runs complete."
