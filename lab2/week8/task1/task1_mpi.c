@@ -248,7 +248,7 @@ int main(int argc, char *argv[]) {
                     argv[0]);
         } else {
             params[0] = atoi(argv[1]);
-            if (argc == 3) {
+            if (argc >= 3) {
                 params[1] = atoi(argv[2]);
             }
             if (params[0] <= 2) {
