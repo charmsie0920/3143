@@ -2,46 +2,25 @@
  * Task 3 - OpenMP: Finding Prime Numbers
  * FIT3143 Lab 1 (Week 4)   [REVISED for Lab 2 / Week 8]
  *
- * Parallel version of task1 using OpenMP to find primes less than n.
- * Outputs to the console if n < 100, or to output.txt if n >= 100.
+ * Parallel version of Task 1 using OpenMP.
  *
  * How it works:
- * - Instead of using locks, each thread updates its own specific index in
- *   an array (is_prime_flag). This prevents race conditions.
- * - schedule(dynamic, 1000) is used because larger numbers take more math
- *   to check. Dynamic scheduling gives out chunks of work as threads become
- *   free, which balances the load better than a static split.
- * - The flags are then compacted into a sorted list, IN PARALLEL (see below).
+ * - Search: schedule(dynamic, 1000). Larger numbers cost more to test, so
+ *   dynamic scheduling hands out chunks as threads become free, balancing
+ *   better than a static split.
+ * - Compaction: three-phase parallel prefix sum (count block / prefix / fill),
+ *   replacing the serial O(n) flag-to-array pass flagged in the feedback.
+ * - Everything sits in ONE parallel region, so threads are not torn down and
+ *   respawned between the search and the compaction.
  *
- * ---- Revisions for Lab 2 (see CHANGES.md) ----------------------------------
- * 1. The serial O(n) flag-to-array pass is gone. Marker feedback: "has
- *    additional O(n) serial flag to array pass". Compaction is now parallel,
- *    using the same three-phase prefix-sum scheme as the revised task2.c:
+ * ---- Phase measurement for Amdahl's Law ------------------------------------
+ *   parallel_s  max over threads of (search + count + fill)
+ *   serial_s    the prefix sum (one thread, O(p)) plus the file write
+ *   overhead_s  total - parallel_s - serial_s (region entry/exit, barriers)
  *
- *      Phase A  each thread counts set flags in its own CONTIGUOUS block
- *      Phase B  #pragma omp single computes the exclusive prefix sum,
- *               giving each thread its write offset (O(p) work)
- *      Phase C  each thread copies its block's primes to primes[offset...]
- *
- *    Output is sorted without a sort step, because the blocks are contiguous
- *    and ascending and each thread scans its block in ascending order.
- *
- *    Everything now sits inside ONE `#pragma omp parallel` region, so the
- *    threads are not torn down and respawned between the search and the
- *    compaction. The implicit barrier at the end of `omp for` guarantees all
- *    flags are written before any thread starts counting.
- *
- * 2. Timing: the timed region now covers search AND compaction, ending when
- *    the sorted list exists in memory. This matches task1.c and task2.c
- *    exactly, so the reported speedups compare like with like.
- *
- * 3. Output buffer sized by the Rosser-Schoenfeld bound rather than
- *    allocating n ints (40 MB -> ~3 MB at n = 10,000,000).
- *
- * 4. omp_get_wtime() replaced with clock_gettime(CLOCK_MONOTONIC) so all
- *    four versions use one identical clock. (omp_get_wtime is also
- *    wall-clock, so this is for consistency rather than correctness, and it
- *    removes the need for the old negative-elapsed-time guard.)
+ * The timed region runs from entering the parallel region until the sorted
+ * list has been output (console if n < 100, otherwise output.txt), the
+ * same definition as every other version.
  *
  * Compile: gcc task3.c -o task3 -O2 -fopenmp -lm
  * Run:     ./task3 <n> <number_of_threads>
@@ -59,16 +38,54 @@ static double now_seconds(void) {
     return (double) t.tv_sec + (double) t.tv_nsec / 1e9;
 }
 
-/* Rosser-Schoenfeld bound: pi(x) < 1.25506 * x / ln(x) for x > 1. */
-static long prime_count_bound(int n) {
-    if (n < 100) {
-        return n;
+static long prime_count_bound(long x) {
+    if (x < 100) {
+        return x;
     }
-    return (long) (1.25506 * (double) n / log((double) n)) + 1;
+    return (long) (1.25506 * (double) x / log((double) x)) + 1;
 }
 
-/* Returns 1 if k is prime, 0 otherwise. Only checks divisors up to sqrt(k),
- * and only odd divisors, since k is guaranteed odd when this is called. */
+/* Write primes one per line to path. Formats the digits by hand into one
+ * buffer and issues a single fwrite, instead of one fprintf per prime.
+ * IDENTICAL to write_primes() in task1_mpi.c and the hybrid task2.c, so the
+ * file write costs the same in every version. Returns 0 on success. */
+static int write_primes(const char *path, const int *primes, int count) {
+
+    /* A positive int has at most 10 digits, plus the newline. */
+    char *buf = malloc((size_t) count * 11 + 1);
+    if (buf == NULL) {
+        return -1;
+    }
+
+    char *p = buf;
+    for (int i = 0; i < count; i++) {
+        char     digits[10];
+        int      len = 0;
+        unsigned v   = (unsigned) primes[i];
+        do {
+            digits[len++] = (char) ('0' + v % 10);
+            v /= 10;
+        } while (v > 0);
+        while (len > 0) {
+            *p++ = digits[--len];
+        }
+        *p++ = '\n';
+    }
+
+    FILE *fp = fopen(path, "w");
+    if (fp == NULL) {
+        free(buf);
+        return -1;
+    }
+
+    size_t bytes   = (size_t) (p - buf);
+    size_t written = fwrite(buf, 1, bytes, fp);
+    int    closed  = fclose(fp);
+
+    free(buf);
+    return (written == bytes && closed == 0) ? 0 : -1;
+}
+
 int is_prime(int k) {
     if (k < 2) {
         return 0;
@@ -109,57 +126,56 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* One flag per candidate; each thread owns disjoint indices, so writes
-     * need no synchronisation. calloc zero-initialises to "not prime". */
     char *is_prime_flag = calloc((size_t) n, sizeof(char));
+    int  *offsets       = calloc((size_t) num_threads + 1, sizeof(int));
 
-    /* offsets[i] is where thread i's primes begin in the output array. */
-    int *offsets = calloc((size_t) num_threads + 1, sizeof(int));
-
-    long capacity = prime_count_bound(n);
+    long capacity = prime_count_bound((long) n);
     int *primes = malloc((size_t) capacity * sizeof(int));
 
-    if (is_prime_flag == NULL || offsets == NULL || primes == NULL) {
+    /* Per-thread phase timings, collected inside the parallel region. */
+    double *t_search  = calloc((size_t) num_threads, sizeof(double));
+    double *t_compact = calloc((size_t) num_threads, sizeof(double));
+
+    if (is_prime_flag == NULL || offsets == NULL || primes == NULL
+        || t_search == NULL || t_compact == NULL) {
         fprintf(stderr, "Error: failed memory allocation.\n");
-        free(is_prime_flag);
-        free(offsets);
-        free(primes);
         return 1;
     }
 
     omp_set_num_threads(num_threads);
 
-    /* The runtime may hand back fewer threads than requested; the actual
-     * count is captured inside the region and used to read the final total. */
-    int threads_used = num_threads;
+    int    threads_used = num_threads;
+    double prefix_time  = 0.0;
 
-    /* ---- Timed region: search + compaction ------------------------------ */
+    /* ---- Timed region: search + compaction + file write ----------------- */
     double start_time = now_seconds();
 
     is_prime_flag[2] = 1;
 
     #pragma omp parallel
     {
-        /* ---- Search phase: dynamic chunks of 1000 odd candidates ------- */
+        int id = omp_get_thread_num();
+        int nt = omp_get_num_threads();
+
+        double s0 = now_seconds();
+
         #pragma omp for schedule(dynamic, 1000)
         for (int k = 3; k < n; k += 2) {
             if (is_prime(k)) {
                 is_prime_flag[k] = 1;
             }
         }
-        /* Implicit barrier here: every flag is written before Phase A. */
+        /* Implicit barrier: all flags written before Phase A. */
 
-        int id = omp_get_thread_num();
-        int nt = omp_get_num_threads();
+        t_search[id] = now_seconds() - s0;
 
-        /* Contiguous block of candidate values owned by this thread. Blocks
-         * are used here (rather than the dynamic chunks of the search) so
-         * that Phase C produces sorted output with no sort step. */
         long span = (long) n - 2;
         long klo = 2 + span * id / nt;
         long khi = 2 + span * (id + 1) / nt;
 
-        /* ---- Phase A: count set flags in this block -------------------- */
+        /* ---- Phase A: count ---------------------------------------------- */
+        double c0 = now_seconds();
+
         int local_count = 0;
         for (long k = klo; k < khi; k++) {
             if (is_prime_flag[k]) {
@@ -168,59 +184,114 @@ int main(int argc, char *argv[]) {
         }
         offsets[id + 1] = local_count;
 
+        double c1 = now_seconds();
+
         #pragma omp barrier
 
-        /* ---- Phase B: exclusive prefix sum, O(p) work ------------------ */
+        /* ---- Phase B: prefix sum ----------------------------------------- */
         #pragma omp single
         {
+            double p0 = now_seconds();
             for (int i = 0; i < nt; i++) {
                 offsets[i + 1] += offsets[i];
             }
+            prefix_time  = now_seconds() - p0;
             threads_used = nt;
         }
-        /* Implicit barrier at the end of `single`: offsets[] is now safe
-         * for every thread to read. */
+        /* Implicit barrier after single. */
 
-        /* ---- Phase C: write this block's primes at its own offset ------ */
+        /* ---- Phase C: fill ------------------------------------------------ */
+        double f0 = now_seconds();
+
         int idx = offsets[id];
         for (long k = klo; k < khi; k++) {
             if (is_prime_flag[k]) {
                 primes[idx++] = (int) k;
             }
         }
+
+        /* Barrier waits between the phases are overhead, not this thread's
+         * own scalable work, so they are excluded here. */
+        t_compact[id] = (c1 - c0) + (now_seconds() - f0);
     }
 
     double elapsed_seconds = now_seconds() - start_time;
-    /* ---- End timed region: sorted list now exists in primes[] ----------- */
+    /* ---- Compaction done; the file write below is also timed ------------ */
 
     int count = offsets[threads_used];
+
+    /* ---- Output: timed, and added to the total -------------------------
+     * As in Lab 1: n < 100 prints to the console, otherwise the primes are
+     * written to output.txt. Output is serial work in every version, so it
+     * is reported on its own as write_s and counted in the serial part --
+     * exactly as in task1_mpi.c and the hybrid task2.c. */
+    double t_write0 = now_seconds();
 
     if (n < 100) {
         for (int i = 0; i < count; i++) {
             printf("%d ", primes[i]);
         }
         printf("\n");
-    } else {
-        FILE *fp = fopen("output.txt", "w");
-        if (fp == NULL) {
-            fprintf(stderr, "Error: no output file\n");
-            free(primes);
-            free(is_prime_flag);
-            free(offsets);
-            return 1;
-        }
-        for (int i = 0; i < count; i++) {
-            fprintf(fp, "%d\n", primes[i]);
-        }
-        fclose(fp);
+    } else if (write_primes("output.txt", primes, count) != 0) {
+        fprintf(stderr, "Error: could not write output.txt.\n");
+        free(primes);
+        free(is_prime_flag);
+        free(offsets);
+        free(t_search);
+        free(t_compact);
+        return 1;
+    }
+
+    double t_write = now_seconds() - t_write0;
+    double total_seconds = elapsed_seconds + t_write;
+
+    /* ---- Phase accounting ------------------------------------------------ */
+    double min_search = t_search[0];
+    double max_search = t_search[0];
+    double max_work   = 0.0;
+
+    for (int i = 0; i < threads_used; i++) {
+        double work = t_search[i] + t_compact[i];
+        if (work > max_work)         max_work   = work;
+        if (t_search[i] < min_search) min_search = t_search[i];
+        if (t_search[i] > max_search) max_search = t_search[i];
+    }
+
+    /* Note: with schedule(dynamic) the implicit barrier at the end of the
+     * omp for means every thread's measured search time includes any wait
+     * for stragglers, so this imbalance figure understates the true spread.
+     * It is reported for consistency with the pthreads version. */
+    double imbalance = 0.0;
+    if (max_search > 0.0) {
+        imbalance = 100.0 * (max_search - min_search) / max_search;
+    }
+
+    double serial_part = prefix_time + t_write;
+    double overhead    = total_seconds - max_work - serial_part;
+    if (overhead < 0.0) {
+        overhead = 0.0;
     }
 
     printf("Primes found: %d\n", count);
     printf("Threads used: %d\n", threads_used);
-    printf("Time taken: %.6f seconds\n", elapsed_seconds);
+    printf("Total time (incl. file write): %.6f seconds\n", total_seconds);
+    printf("  parallel (slowest thread): %.6f s\n", max_work);
+    printf("  serial (prefix + write)  : %.6f s\n", serial_part);
+    printf("    prefix sum             : %.6f s\n", prefix_time);
+    printf("    file write             : %.6f s\n", t_write);
+    printf("  overhead (region/barrier): %.6f s\n", overhead);
+    printf("  search imbalance         : %.2f %%\n", imbalance);
+
+    /* impl,scheme,n,procs,threads,nodes,primes,
+     * total,serial,parallel,overhead,imbalance,write */
+    printf("CSV,openmp,dynamic,%d,1,%d,1,%d,%.6f,%.6f,%.6f,%.6f,%.2f,%.6f\n",
+           n, threads_used, count, total_seconds, serial_part, max_work,
+           overhead, imbalance, t_write);
 
     free(primes);
     free(is_prime_flag);
     free(offsets);
+    free(t_search);
+    free(t_compact);
     return 0;
 }
