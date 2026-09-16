@@ -26,8 +26,9 @@
  *      cheap and expensive candidates, so the compute balance is good.
  *      The cost is that each rank's primes are interleaved with everyone
  *      else's, so the concatenation Gatherv produces is NOT sorted and the
- *      root must merge p sorted runs afterwards. That merge is serial work
- *      on the root and is measured separately below.
+ *      root must reassemble p sorted runs afterwards. It knows which rank
+ *      owns each chunk, so this takes O(total) with no comparisons between
+ *      runs. It is serial work on the root and is measured separately below.
  *
  *   2  WEIGHTED -- contiguous ranges sized by estimated cost.
  *      Trial division to sqrt(k) costs about sqrt(k) work per candidate, so
@@ -67,7 +68,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 #include <math.h>
 #include <mpi.h>
 
@@ -191,12 +191,27 @@ static int write_primes(const char *path, const int *primes, int count) {
     return (written == bytes && closed == 0) ? 0 : -1;
 }
 
-/* Merge p ascending runs into one ascending array.
- * segments[displs[r] .. displs[r]+counts[r]) is run r. Simple linear scan
- * over the p run heads: O(total * p). With p at most 32 that is cheaper in
- * practice than a heap and far simpler to read. Only needed for CYCLIC. */
+/* Reassemble the CYCLIC scheme's gathered runs into one ascending array.
+ * segments[displs[r] .. displs[r]+counts[r]) is run r, rank r's primes in
+ * ascending order.
+ *
+ * No comparisons between runs are needed, because the root already knows
+ * which rank owns which part of the number line: chunk c belongs to rank
+ * c % p, and covers the candidates k < 3 + 2*(c+1)*CHUNK. So the root walks
+ * the chunks in order and, for each one, copies primes from its owner's run
+ * until it reaches a prime beyond that chunk. Every prime is copied exactly
+ * once, so the cost is O(total + number of chunks) -- independent of p.
+ *
+ * The earlier version compared the heads of all p runs for every prime,
+ * O(total * p), and its cost grew with the process count (0.011 s at p = 1
+ * to 0.20 s at p = 32 on CAAS). That broke Amdahl's assumption that the
+ * serial part stays constant as processes are added. Only needed for CYCLIC.
+ *
+ * Rank 0's run also holds the prime 2, which is below chunk 0's limit and is
+ * therefore copied first. total_chunks is at least 1 so that this happens
+ * even when there are no odd candidates at all (n = 3). */
 static void merge_runs(const int *segments, const int *counts, const int *displs,
-                       int p, int total, int *out) {
+                       int p, int total, long num_candidates, int *out) {
 
     int *pos = calloc((size_t) p, sizeof(int));
     if (pos == NULL) {
@@ -204,26 +219,31 @@ static void merge_runs(const int *segments, const int *counts, const int *displs
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    for (int written = 0; written < total; written++) {
+    long total_chunks = (num_candidates + CHUNK - 1) / CHUNK;
+    if (total_chunks < 1) {
+        total_chunks = 1;
+    }
 
-        int best_rank  = -1;
-        int best_value = INT_MAX;
+    int written = 0;
 
-        for (int r = 0; r < p; r++) {
-            if (pos[r] < counts[r]) {
-                int v = segments[displs[r] + pos[r]];
-                if (v < best_value) {
-                    best_value = v;
-                    best_rank  = r;
-                }
-            }
+    for (long c = 0; c < total_chunks; c++) {
+
+        int         r     = (int) (c % p);
+        long        limit = 3 + 2 * (c + 1) * (long) CHUNK;
+        const int  *run   = segments + displs[r];
+
+        while (pos[r] < counts[r] && run[pos[r]] < limit) {
+            out[written++] = run[pos[r]++];
         }
-
-        out[written] = best_value;
-        pos[best_rank]++;
     }
 
     free(pos);
+
+    /* Cheap sanity check: every gathered prime must have been placed. */
+    if (written != total) {
+        fprintf(stderr, "Root: merge placed %d of %d primes.\n", written, total);
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -422,7 +442,8 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Rank 0: merge buffer allocation failed.\n");
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
-        merge_runs(all_primes, counts, displs, size, total, merged);
+        merge_runs(all_primes, counts, displs, size, total,
+                   num_candidates, merged);
         free(all_primes);
         all_primes = merged;
     }
