@@ -1,128 +1,36 @@
 /*
- * Task 2 - Hybrid Open MPI + OpenMP: Finding Prime Numbers
- * FIT3143 Lab 2 (Week 8)
+ * FIT3143 Lab 2 - Task 2: Prime search with Open MPI + OpenMP
  *
- * Hybrid prime search. Distributed-memory parallelism across MPI processes,
- * shared-memory parallelism across OpenMP threads inside each process. Finds
- * all primes strictly less than n and writes them, in ascending order, to a
- * text file from the root process.
+ * Finds all primes less than n. The root writes them in ascending order
+ * to output_hybrid.txt (or prints them if n < 100).
  *
- * Derived from task1_mpi.c. The prime test, the distribution schemes and the
- * timing methodology are all unchanged, so a hybrid run and a pure-MPI run at
- * the same n differ only by the threading layer and are directly comparable.
+ * Only odd numbers are tested. Candidate j is the number k = 3 + 2j.
  *
- * ---- Two levels of partitioning --------------------------------------------
+ * Two levels of parallelism:
+ *   Level 1 - candidates are split between MPI ranks (same as Task 1).
+ *   Level 2 - each rank splits its share between its OpenMP threads,
+ *             using the same scheme.
  *
- * The candidates are the odd numbers 3, 5, 7, ... below n, treated as an
- * index space 0 .. num_candidates-1 where candidate j is the number
- * k = 3 + 2j.
+ * Schemes:
+ *   0 BLOCK    - equal contiguous ranges. Unbalanced.
+ *   1 CYCLIC   - chunks of 1000 candidates dealt round-robin to ranks.
+ *                Within a rank, threads take chunks dynamically.
+ *   2 WEIGHTED - contiguous ranges sized for roughly equal work.
  *
- * LEVEL 1 (processes) splits that index space across ranks, using one of the
- * three schemes below. LEVEL 2 (threads) splits each rank's share across its
- * threads using the SAME scheme, one level down. The two levels are the same
- * rule applied recursively, which is why range_boundary() and
- * split_boundary() compute the same thing over different intervals.
+ * Avoiding races between threads:
+ *   A rank's share is cut into "slots" (one per thread for block/weighted,
+ *   one per chunk for cyclic). Each slot writes to its own part of a
+ *   scratch array and keeps its own count. Afterwards a prefix sum of the
+ *   counts gives each slot's position in the final array, and the slots
+ *   are copied there. Slots are in ascending order, so the result is
+ *   sorted without a sort.
  *
- * The schemes differ only in which candidates a rank owns.
+ * Timing starts after buffers are allocated and ends after the file is
+ * written. The reported time is the slowest rank's time.
  *
- *   0  BLOCK -- equal-sized contiguous ranges.
- *      Simple, and output is sorted for free. But cost per candidate grows
- *      with k, so the last rank does far more work than the first. Expect
- *      poor balance and poor speedup: this is the baseline to beat.
- *
- *   1  CYCLIC -- fixed-size chunks handed out round-robin.
- *      Rank r takes chunks r, r+p, r+2p, ... Every rank gets a fair mix of
- *      cheap and expensive candidates, so the compute balance is good.
- *      The cost is that each rank's primes are interleaved with everyone
- *      else's, so the concatenation Gatherv produces is NOT sorted and the
- *      root must reassemble p sorted runs afterwards. It knows which rank
- *      owns each chunk, so this takes O(total) with no comparisons between
- *      runs. It is serial work on the root and is measured separately below.
- *      At the thread level the rank's chunks are handed to threads
- *      dynamically, one chunk at a time (see below). Splitting the chunk
- *      list into contiguous per-thread blocks instead would give thread 0
- *      the cheapest chunks and the last thread the dearest -- BLOCK's
- *      imbalance again, one level down.
- *
- *   2  WEIGHTED -- contiguous ranges sized by estimated cost.
- *      Trial division to sqrt(k) costs about sqrt(k) work per candidate, so
- *      cumulative work up to x grows roughly as x^1.5. Putting the boundary
- *      for rank i at k_i = n * (i/p)^(2/3) therefore gives every rank about
- *      the same amount of WORK rather than the same COUNT of candidates.
- *      Ranges stay contiguous and ascending, so output is still sorted for
- *      free -- balance without paying for a merge.
- *
- *
- * ---- How the threads produce a sorted local array --------------------------
- *
- * task1_mpi.c appends with local_primes[local_count++]. That is a data race
- * the moment more than one thread runs it, and it would also destroy sorted
- * order even with an atomic counter, because threads finish candidates out
- * of order.
- *
- * So a rank's share is cut into SLOTS: contiguous runs of candidates, each
- * with its own slice of a scratch array and its own prime count, numbered in
- * ascending candidate order.
- *
- *   BLOCK / WEIGHTED  one slot per thread, bounds from split_boundary(),
- *                     handed out schedule(static, 1) so thread t owns slot t
- *   CYCLIC            one slot per chunk the rank owns, handed out
- *                     schedule(dynamic, 1): a thread that finishes a cheap
- *                     chunk immediately takes the next one, so no thread
- *                     idles while its rank still has work -- the same
- *                     balancing schedule(dynamic) gave the Week 4 OpenMP code
- *
- * Then, in three phases:
- *
- *   A  threads search slots, each slot into its own scratch slice
- *   B  the per-slot counts are exclusive-prefix-summed, which yields the
- *      offset in local_primes at which each slot's primes belong
- *   C  each slot's primes are copied to that offset, in parallel
- *
- * Sorted order falls out for free: slots are ascending and each is scanned
- * in ascending order, so slot s's output is entirely below slot s+1's. This
- * is the same prefix-sum compaction the revised Week 4 pthreads and OpenMP
- * versions use, and the same idea as the Gather / displs / Gatherv sequence
- * one level up -- a prefix sum over per-worker counts is how every level
- * here avoids a sort.
- *
- * Phase C needs a separate scratch array rather than compacting in place:
- * with in-place moves, slot s+1's destination can overlap slot s's source.
- *
- *
- * ---- Timing ----------------------------------------------------------------
- *
- * The timed region matches the revised Week 4 versions exactly: it starts
- * after buffers are allocated and ends when the sorted list has been written
- * to the output file. Writing the file is serial work on the root, so it is
- * also reported on its own and counted in Amdahl's serial fraction.
- *
- * Parallel runtime is the MAXIMUM over ranks, not rank 0's own time -- the
- * job is not finished until the slowest rank is finished. MPI_Reduce with
- * MPI_MAX does this. An MPI_Barrier before the start clock stops ranks that
- * happened to reach the region early from recording an unfairly long time.
- *
- * Known limitation: MPI_Gatherv counts and displacements are int, so the
- * total prime count must fit in an int. Fine to around n = 10^9.
- *
- * Build: module load openmpi/4.1.5-gcc-11.2.0-ux65npg
- *        mpicc task2.c -o task2_hybrid -O2 -fopenmp -lm
- * Run:   srun ./task2_hybrid <n> <threads> [scheme 0|1|2] [label]   (inside a SLURM job)
- *
- * On CAAS, allocate the job in the shape it runs, as in the MPI + OpenMP
- * template, and do NOT pin threads:
- *        #SBATCH --ntasks=<p> --cpus-per-task=<threads>
- *        export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
- *        srun ./task2_hybrid <n> <threads> ...
- * CAAS's Slurm does not bind ranks to cores, so every rank sees all of the
- * node's CPUs. OMP_PROC_BIND/OMP_PLACES then pins every rank's threads onto
- * the SAME first cores; left unpinned, the Linux scheduler spreads them.
- *
- * The optional label replaces the scheme name in the CSV output. It exists so
- * weak-scaling runs can be tagged (e.g. "cyclic-weak") and kept separate from
- * strong-scaling runs during analysis -- otherwise a weak-scaling point that
- * happens to share an n value with a strong-scaling point gets averaged in
- * with it and both become meaningless.
+ * Build: mpicc task2.c -o task2_hybrid -O2 -fopenmp -lm
+ * Run:   srun ./task2_hybrid <n> <threads> [scheme 0|1|2] [label]
+ *        Allocate with --ntasks=<procs> --cpus-per-task=<threads>.
  */
 
 #include <stdio.h>
@@ -132,17 +40,12 @@
 #include <mpi.h>
 #include <omp.h>
 
-/* Distinct from task1_mpi.c's output_mpi.txt: the two files have to sit side
- * by side so the hybrid result can be diffed against the pure-MPI one. */
 #define OUTPUT_FILE "output_hybrid.txt"
 
-/* Candidates per chunk for the cyclic scheme. Matches the pthreads CHUNK
- * and the OpenMP schedule(dynamic, 1000) so all three parallel versions
- * use the same granularity. */
+/* Chunk size for the cyclic scheme (same as Task 1) */
 #define CHUNK 1000
 
-/* Upper limit on threads per rank. Bounds the small per-thread arrays and
- * catches a nonsense command line before it becomes a huge allocation. */
+/* Sanity limit on the thread count argument */
 #define MAX_THREADS 256
 
 #define SCHEME_BLOCK    0
@@ -156,7 +59,7 @@ static const char *scheme_name(int s) {
     return "unknown";
 }
 
-/* Rosser & Schoenfeld (1962): pi(x) < 1.25506 * x / ln(x) for x > 1. */
+/* Upper bound on the number of primes below x (Rosser-Schoenfeld) */
 static long prime_count_bound(long x) {
     if (x < 100) {
         return x;
@@ -164,10 +67,7 @@ static long prime_count_bound(long x) {
     return (long) (1.25506 * (double) x / log((double) x)) + 1;
 }
 
-
-
-
-/* Returns 1 if k is prime, 0 otherwise. Identical across all four versions. */
+/* Trial division up to sqrt(k). Same function as the serial version. */
 int is_prime(int k) {
     if (k < 2) {
         return 0;
@@ -188,15 +88,8 @@ int is_prime(int k) {
     return 1;
 }
 
-/* Boundary of rank i's range in candidate-index space, for the contiguous
- * schemes. Rank i owns [boundary(i), boundary(i+1)).
- *
- * BLOCK: equal candidate counts. Multiplying before dividing spreads the
- * remainder so blocks differ by at most one and nothing is dropped.
- *
- * WEIGHTED: equal estimated cost. k_i = n * (i/p)^(2/3), converted to a
- * candidate index by j = (k - 3) / 2. The endpoints are pinned exactly so
- * that rounding can never lose or duplicate a candidate at the ends. */
+/* Level 1: start index of rank i's range for BLOCK and WEIGHTED.
+ * Rank i owns candidates [boundary(i), boundary(i+1)). Same as Task 1. */
 static long range_boundary(int i, int p, long num_candidates, int n, int scheme) {
 
     if (i <= 0) {
@@ -207,6 +100,7 @@ static long range_boundary(int i, int p, long num_candidates, int n, int scheme)
     }
 
     if (scheme == SCHEME_WEIGHTED) {
+        /* Boundary value k_i = n * (i/p)^(2/3), converted to an index */
         double frac = (double) i / (double) p;
         double k_i  = (double) n * pow(frac, 2.0 / 3.0);
         long   j    = (long) ((k_i - 3.0) / 2.0);
@@ -219,19 +113,10 @@ static long range_boundary(int i, int p, long num_candidates, int n, int scheme)
     return num_candidates * i / p;
 }
 
-/* Boundary of thread t's sub-range inside one rank's candidate range
- * [jlo, jhi). Thread t owns [split_boundary(t), split_boundary(t+1)).
- *
- * This is range_boundary() generalised to an interval that does not start at
- * zero. BLOCK splits the candidate count evenly. WEIGHTED equalises estimated
- * cost: the work of trial-dividing everything up to k grows as k^1.5, so the
- * cost of the interval [klo, k) is proportional to k^1.5 - klo^1.5, and
- * setting that to a t/nt fraction of the whole interval's cost gives
- *
- *     k_t = ( klo^1.5 + (t/nt) * (khi^1.5 - klo^1.5) ) ^ (2/3)
- *
- * With klo = 3 this collapses to the k_i = n * (i/p)^(2/3) used at the rank
- * level, so the two levels really are the same rule. */
+/* Level 2: start index of thread t's part of a rank's range [jlo, jhi).
+ * Same idea as range_boundary, but for a range that doesn't start at 0.
+ * For WEIGHTED, work up to k grows like k^1.5, so the boundary is
+ *   k_t = (klo^1.5 + (t/nt) * (khi^1.5 - klo^1.5))^(2/3) */
 static long split_boundary(int t, int nt, long jlo, long jhi, int scheme) {
 
     if (t <= 0) {
@@ -258,15 +143,8 @@ static long split_boundary(int t, int nt, long jlo, long jhi, int scheme) {
     return jlo + (jhi - jlo) * t / nt;
 }
 
-/* Upper bound on how many primes lie in [lo, hi). Used to size each thread's
- * scratch slice without a counting pass over the range.
- *
- * prime_count_bound() bounds pi(x) counting up from zero, which is useless
- * per thread: summing it over the threads over-allocates by roughly the
- * thread count. Rosser & Schoenfeld also give pi(x) > x/ln x for x >= 17, so
- * pi(hi) - pi(lo) is strictly below 1.25506 hi/ln hi - lo/ln lo. Below 17
- * that lower bound does not hold, so fall back to bounding pi(hi) alone.
- * +2 absorbs the truncation and any floating-point wobble. */
+/* Upper bound on the number of primes in [lo, hi), using
+ * pi(hi) < 1.25506 hi/ln hi and pi(lo) > lo/ln lo (valid for lo >= 17). */
 static long prime_count_bound_range(long lo, long hi) {
 
     if (hi <= lo) {
@@ -286,16 +164,11 @@ static long prime_count_bound_range(long lo, long hi) {
     return (long) diff + 2;
 }
 
-/* Scratch capacity for a slot covering candidate indices [lo, hi): the
- * smallest of three upper bounds on the primes it can hold.
- *
- *   - its candidate count
- *   - the Rosser-Schoenfeld range bound, tight for wide slots
- *   - Montgomery & Vaughan (1973): pi(x + y) - pi(x) <= 2y / ln y for y >= 2,
- *     tight for narrow slots. A cyclic chunk spans y = 2 * CHUNK integers,
- *     so at most ~527 primes rather than 1000 -- the Rosser-Schoenfeld
- *     difference is useless there, since it bounds pi(hi) and pi(lo)
- *     separately and their error terms dwarf a 2000-wide gap. */
+/* How much scratch space a slot needs: the smallest of
+ *   - the number of candidates in the slot
+ *   - the Rosser-Schoenfeld range bound (good for wide slots)
+ *   - Montgomery-Vaughan: pi(x+y) - pi(x) <= 2y / ln y (good for narrow
+ *     slots such as a 1000-candidate cyclic chunk) */
 static long slot_capacity(long lo, long hi) {
 
     long cand = hi - lo;
@@ -310,7 +183,7 @@ static long slot_capacity(long lo, long hi) {
         cap = rs;
     }
 
-    double y  = 2.0 * (double) cand;
+    double y  = 2.0 * (double) cand;   /* the slot spans 2 * cand integers */
     long   mv = (long) (2.0 * y / log(y)) + 2;
     if (mv < cap) {
         cap = mv;
@@ -319,14 +192,12 @@ static long slot_capacity(long lo, long hi) {
     return cap;
 }
 
-/* Write primes one per line to path. fprintf re-parses its format string for
- * every number; formatting the digits by hand into one buffer and issuing a
- * single fwrite gives byte-identical output without that per-number cost.
- * The same writer is used in every version, so the file write costs the
- * same everywhere and the speedups stay comparable. Returns 0 on success. */
+/* Writes one prime per line. Builds the whole file in memory and writes it
+ * with a single fwrite, which is faster than calling fprintf for every
+ * prime. Returns 0 on success. Same as Task 1. */
 static int write_primes(const char *path, const int *primes, int count) {
 
-    /* A positive int has at most 10 digits, plus the newline. */
+    /* Up to 10 digits per number, plus a newline */
     char *buf = malloc((size_t) count * 11 + 1);
     if (buf == NULL) {
         return -1;
@@ -361,29 +232,17 @@ static int write_primes(const char *path, const int *primes, int count) {
     return (written == bytes && closed == 0) ? 0 : -1;
 }
 
-/* Reassemble the CYCLIC scheme's gathered runs into one ascending array.
- * segments[displs[r] .. displs[r]+counts[r]) is run r, rank r's primes in
- * ascending order.
+/* CYCLIC only: put the gathered results back in ascending order.
  *
- * No comparisons between runs are needed, because the root already knows
- * which rank owns which part of the number line: chunk c belongs to rank
- * c % p, and covers the candidates k < 3 + 2*(c+1)*CHUNK. So the root walks
- * the chunks in order and, for each one, copies primes from its owner's run
- * until it reaches a prime beyond that chunk. Every prime is copied exactly
- * once, so the cost is O(total + number of chunks) -- independent of p.
- *
- * The earlier version compared the heads of all p runs for every prime,
- * O(total * p), and its cost grew with the process count (0.011 s at p = 1
- * to 0.20 s at p = 32 on CAAS). That broke Amdahl's assumption that the
- * serial part stays constant as processes are added. Only needed for CYCLIC.
- *
- * Rank 0's run also holds the prime 2, which is below chunk 0's limit and is
- * therefore copied first. total_chunks is at least 1 so that this happens
- * even when there are no odd candidates at all (n = 3). */
+ * Each rank's list is sorted, but the lists overlap. Chunk c belongs to
+ * rank c % p and holds the numbers below 3 + 2*(c+1)*CHUNK, so we go
+ * through the chunks in order and copy that chunk's primes from its
+ * owner's list. Each prime is copied once, so this is O(total).
+ * Same as Task 1. */
 static void merge_runs(const int *segments, const int *counts, const int *displs,
                        int p, int total, long num_candidates, int *out) {
 
-    int *pos = calloc((size_t) p, sizeof(int));
+    int *pos = calloc((size_t) p, sizeof(int));   /* read position in each list */
     if (pos == NULL) {
         fprintf(stderr, "Root: merge allocation failed.\n");
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -391,7 +250,7 @@ static void merge_runs(const int *segments, const int *counts, const int *displs
 
     long total_chunks = (num_candidates + CHUNK - 1) / CHUNK;
     if (total_chunks < 1) {
-        total_chunks = 1;
+        total_chunks = 1;   /* so the prime 2 is still copied when n = 3 */
     }
 
     int written = 0;
@@ -409,7 +268,6 @@ static void merge_runs(const int *segments, const int *counts, const int *displs
 
     free(pos);
 
-    /* Cheap sanity check: every gathered prime must have been placed. */
     if (written != total) {
         fprintf(stderr, "Root: merge placed %d of %d primes.\n", written, total);
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -418,7 +276,7 @@ static void merge_runs(const int *segments, const int *counts, const int *displs
 
 int main(int argc, char *argv[]) {
 
-    //init threads 
+    /* FUNNELED: threads are used, but only the main thread calls MPI */
     int provided;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
 
@@ -435,9 +293,8 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    /* ---- Rank 0 reads the arguments, then broadcasts them ---------------
-     * n = 0 is the "bad input, everyone stop" signal. Without it one rank
-     * would exit while the others blocked forever in the broadcast. */
+    /* ---- Read arguments on rank 0 and broadcast them ---- */
+    /* params = {n, scheme, threads}. n = 0 tells every rank to stop. */
     int params[3] = {0, SCHEME_BLOCK, 1};
 
     if (rank == 0) {
@@ -468,13 +325,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* The broadcast is serial work in Amdahl's sense: its cost does not fall
-     * as ranks are added. Timed so it can be counted in the serial fraction.
-     *
-     * The thread count rides along with n and the scheme rather than being
-     * re-parsed per rank: every rank must agree on it, because it will decide
-     * how each rank subdivides its own share of the candidates. Ranks
-     * disagreeing here would leave gaps or overlaps in the search. */
+    /* All ranks must agree on n, the scheme and the thread count */
     double t_bcast0 = MPI_Wtime();
     MPI_Bcast(params, 3, MPI_INT, 0, MPI_COMM_WORLD);
     double t_bcast = MPI_Wtime() - t_bcast0;
@@ -483,8 +334,7 @@ int main(int argc, char *argv[]) {
     int scheme  = params[1];
     int threads = params[2];
 
-    /* Only the root prints, so the label needs no broadcast. */
-    const char *label = NULL;
+    const char *label = NULL;   /* only rank 0 prints, so no need to broadcast */
     if (rank == 0 && argc == 5) {
         label = argv[4];
     }
@@ -494,17 +344,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* Fix the team size now. Later steps compute each thread's share of the
-     * work ahead of time, so the runtime must hand back exactly the number of
-     * threads asked for -- never fewer. */
+    /* Always use exactly the requested number of threads */
     omp_set_dynamic(0);
     omp_set_num_threads(threads);
 
     long num_candidates = ((long) n - 2) / 2;
 
-    /* ---- Level 1: this rank's share of the candidates --------------------
-     * Contiguous schemes own the candidate range [jlo, jhi). Cyclic owns
-     * chunks rank, rank+size, rank+2*size, ... -- my_chunks of them. */
+    /* ---- Level 1: this rank's share ---- */
+    /* Block/weighted: the range [jlo, jhi).
+     * Cyclic: chunks rank, rank+size, rank+2*size, ... (my_chunks of them) */
     long jlo = 0;
     long jhi = 0;
 
@@ -520,17 +368,15 @@ int main(int argc, char *argv[]) {
         jhi = range_boundary(rank + 1, size, num_candidates, n, scheme);
     }
 
-    /* ---- Level 2: cut the share into slots -------------------------------
-     * Computed before the clock starts, so once the search begins a thread
-     * only looks bounds up. One slot per chunk for cyclic, one per thread for
-     * the contiguous schemes -- see the header for why. */
+    /* ---- Level 2: cut the share into slots ---- */
+    /* Cyclic: one slot per chunk. Block/weighted: one slot per thread. */
     long nslots = (scheme == SCHEME_CYCLIC) ? my_chunks : threads;
 
-    long   *slot_lo = malloc((size_t) (nslots + 1) * sizeof(long));
-    long   *slot_hi = malloc((size_t) (nslots + 1) * sizeof(long));
-    long   *sslice  = malloc((size_t) (nslots + 1) * sizeof(long));
-    int    *scount  = calloc((size_t) nslots + 1, sizeof(int));
-    double *ttime   = calloc((size_t) threads, sizeof(double));
+    long   *slot_lo = malloc((size_t) (nslots + 1) * sizeof(long));  /* slot start */
+    long   *slot_hi = malloc((size_t) (nslots + 1) * sizeof(long));  /* slot end */
+    long   *sslice  = malloc((size_t) (nslots + 1) * sizeof(long));  /* scratch offset */
+    int    *scount  = calloc((size_t) nslots + 1, sizeof(int));      /* primes per slot */
+    double *ttime   = calloc((size_t) threads, sizeof(double));      /* time per thread */
 
     if (slot_lo == NULL || slot_hi == NULL || sslice == NULL
         || scount == NULL || ttime == NULL) {
@@ -538,8 +384,7 @@ int main(int argc, char *argv[]) {
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    /* sslice[] is the exclusive prefix sum of the slot capacities: slot s
-     * owns scratch[sslice[s] .. sslice[s+1]). */
+    /* Slot s uses scratch[sslice[s] .. sslice[s+1]) */
     sslice[0] = 0;
 
     for (long s = 0; s < nslots; s++) {
@@ -558,17 +403,15 @@ int main(int argc, char *argv[]) {
         sslice[s + 1] = sslice[s] + slot_capacity(slot_lo[s], slot_hi[s]);
     }
 
-    /* Static, chunk 1, for one slot per thread: slot t goes to thread t.
-     * Dynamic, chunk 1, for one slot per chunk. Set here, so the single
-     * schedule(runtime) loop below serves every scheme. */
+    /* Cyclic: threads grab chunks one at a time as they finish (dynamic).
+     * Block/weighted: thread t gets slot t (static). */
     if (scheme == SCHEME_CYCLIC) {
         omp_set_schedule(omp_sched_dynamic, 1);
     } else {
         omp_set_schedule(omp_sched_static, 1);
     }
 
-    /* +2 covers rank 0's extra entry for the prime 2 and leaves slack for
-     * empty ranges. */
+    /* +2 leaves room for the prime 2 on rank 0 */
     long capacity = sslice[nslots] + 2;
 
     int *local_primes = malloc((size_t) capacity * sizeof(int));
@@ -579,8 +422,8 @@ int main(int argc, char *argv[]) {
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    int *counts = NULL;
-    int *displs = NULL;
+    int *counts = NULL;   /* primes found by each rank (root only) */
+    int *displs = NULL;   /* where each rank's primes go (root only) */
 
     if (rank == 0) {
         counts = malloc((size_t) size * sizeof(int));
@@ -591,36 +434,28 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* ---- Timed region begins --------------------------------------------
-     * The barrier means every rank starts the clock at the same moment, so
-     * a rank that arrived early does not report time it spent waiting. */
+    /* ---- Start timing (barrier so all ranks start together) ---- */
     MPI_Barrier(MPI_COMM_WORLD);
     double t_start = MPI_Wtime();
 
     int local_count = 0;
 
-    /* 2 is the only even prime and is never generated by k = 3 + 2j. Rank 0
-     * contributes it directly, and it belongs at the front of the list. */
+    /* 2 is the only even prime, so rank 0 adds it directly */
     if (rank == 0) {
         local_primes[local_count++] = 2;
     }
 
-    /* Where the threaded output begins: index 1 on rank 0, which already
-     * holds the prime 2, and index 0 everywhere else. */
+    /* Thread results start after the 2 on rank 0, at 0 elsewhere */
     int base = local_count;
 
     #pragma omp parallel num_threads(threads)
     {
-        /* omp_get_wtime, not MPI_Wtime: under MPI_THREAD_FUNNELED only the
-         * master thread may call into MPI. Both are wall-clock, so the two
-         * measurements stay comparable. */
+        /* omp_get_wtime because only the main thread may call MPI */
         double t_thread0 = omp_get_wtime();
 
-        /* ---- Phase A: search the slots -----------------------------------
-         * Each slot writes only its own scratch slice and its own count, so
-         * there is no lock and no atomic. nowait, so the timer below records
-         * when THIS thread ran out of work rather than when the slowest did;
-         * the end of the parallel region is still a barrier. */
+        /* ---- Phase A: search the slots ---- */
+        /* Each slot has its own scratch space and count, so no locks needed.
+         * nowait so each thread records when it finished its own work. */
         #pragma omp for schedule(runtime) nowait
         for (long s = 0; s < nslots; s++) {
 
@@ -640,17 +475,14 @@ int main(int argc, char *argv[]) {
         ttime[omp_get_thread_num()] = omp_get_wtime() - t_thread0;
     }
 
-    /* ---- Phase B: exclusive prefix sum over the per-slot counts ----------
-     * Serial, but only nslots additions -- tens of thousands at most, which
-     * is microseconds against a search measured in seconds. */
+    /* ---- Phase B: prefix sum of the slot counts ---- */
+    /* After this, scount[s] = number of primes before slot s */
     for (long s = 0; s < nslots; s++) {
         scount[s + 1] += scount[s];
     }
 
-    /* ---- Phase C: copy each slot's primes to their final home ------------
-     * scount[s] is now the number of primes in the slots below s, which is
-     * exactly where slot s's block belongs. Destinations are disjoint, so
-     * the copies run concurrently. */
+    /* ---- Phase C: copy each slot's primes into place ---- */
+    /* Destinations don't overlap, so this can run in parallel */
     #pragma omp parallel for num_threads(threads) schedule(static)
     for (long s = 0; s < nslots; s++) {
         int found = scount[s + 1] - scount[s];
@@ -664,11 +496,8 @@ int main(int argc, char *argv[]) {
 
     double t_search_end = MPI_Wtime();
 
-    /* ---- Collection on the root -----------------------------------------
-     * Gather the per-rank counts, prefix-sum them into displacements, then
-     * Gatherv the data. displs[i] is where rank i's block lands, which is
-     * the same prefix-sum idea used by the threaded compaction, applied
-     * across processes instead of threads. */
+    /* ---- Collect results on the root (same as Task 1) ---- */
+    /* Step 1: gather how many primes each rank found */
     double t_comm0 = MPI_Wtime();
 
     MPI_Gather(&local_count, 1, MPI_INT,
@@ -681,6 +510,7 @@ int main(int argc, char *argv[]) {
     int   *all_primes = NULL;
     double t_prefix   = 0.0;
 
+    /* Step 2: prefix sum of the counts gives each rank's offset */
     if (rank == 0) {
         double t_p0 = MPI_Wtime();
         displs[0] = 0;
@@ -697,19 +527,18 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    /* Step 3: gather the primes themselves */
     double t_gv0 = MPI_Wtime();
 
     MPI_Gatherv(local_primes, local_count, MPI_INT,
                 all_primes, counts, displs, MPI_INT,
                 0, MPI_COMM_WORLD);
 
-    /* Communication only: the prefix sum in between is counted as serial. */
     double t_comm = t_gather + (MPI_Wtime() - t_gv0);
 
-    /* ---- Merge, only for cyclic ------------------------------------------
-     * Block and weighted produce ascending ranges in ascending rank order,
-     * so the concatenation is already sorted. Cyclic interleaves, so the
-     * root has to merge. This is the price cyclic pays for its balance. */
+    /* ---- Sort order ---- */
+    /* Block and weighted results are already in order.
+     * Cyclic results need to be merged. */
     double t_merge_start = MPI_Wtime();
 
     if (rank == 0 && scheme == SCHEME_CYCLIC) {
@@ -725,18 +554,14 @@ int main(int argc, char *argv[]) {
     }
 
     double t_end = MPI_Wtime();
-    /* ---- Timed region ends: sorted list now exists on the root ---------- */
 
+    /* ---- Timing results ---- */
     double my_total  = (t_end - t_start) + t_bcast;
     double my_search = t_search_end - t_start;
     double my_merge  = t_end - t_merge_start;
     double my_comm   = t_comm;
 
-    /* Level-2 imbalance: how unevenly this rank's own threads finished. A
-     * rank cannot leave the parallel region until its slowest thread is
-     * done, so a large spread here wastes cores even when the ranks are
-     * perfectly balanced against one another. Reported separately from the
-     * rank-level figure because the two levels can fail independently. */
+    /* Thread imbalance on this rank: gap between slowest and fastest thread */
     double my_tmax = ttime[0];
     double my_tmin = ttime[0];
 
@@ -756,20 +581,17 @@ int main(int argc, char *argv[]) {
     double max_comm   = 0.0;
     double max_thread_imb = 0.0;
 
-    /* Parallel runtime is the slowest rank, not rank 0. */
+    /* The program is only done when the slowest rank is done, so use the max */
     MPI_Reduce(&my_total,  &max_total,  1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
     MPI_Reduce(&my_search, &max_search, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
     MPI_Reduce(&my_search, &min_search, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
     MPI_Reduce(&my_comm,   &max_comm,   1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
 
-    /* Worst thread imbalance on any rank -- the one that actually held the
-     * job up. */
+    /* Worst thread imbalance across all ranks */
     MPI_Reduce(&my_thread_imb, &max_thread_imb, 1, MPI_DOUBLE, MPI_MAX,
                0, MPI_COMM_WORLD);
 
-    /* ---- How many distinct nodes were actually used ---------------------
-     * Recorded so the CSV distinguishes a single-node run from a run spread
-     * across the gigabit network at the same process count. */
+    /* ---- Count how many nodes were used ---- */
     char hostname[MPI_MAX_PROCESSOR_NAME];
     int  name_len = 0;
     MPI_Get_processor_name(hostname, &name_len);
@@ -787,10 +609,10 @@ int main(int argc, char *argv[]) {
                all_names, MPI_MAX_PROCESSOR_NAME, MPI_CHAR,
                0, MPI_COMM_WORLD);
 
-    /* ---- Output and reporting (root only) -------------------------------- */
+    /* ---- Output and report (root only) ---- */
     if (rank == 0) {
 
-        int nodes = 0;
+        int nodes = 0;   /* number of distinct hostnames */
         for (int i = 0; i < size; i++) {
             char *name_i = all_names + (size_t) i * MPI_MAX_PROCESSOR_NAME;
             int seen = 0;
@@ -805,9 +627,7 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        /* ---- File output -------------------------------------------------
-         * Serial work on the root, and part of what the user waits for, so
-         * it is timed and added to the total below. */
+        /* Write the output (timed, added to the total) */
         double t_write0 = MPI_Wtime();
 
         if (n < 100) {
@@ -822,22 +642,16 @@ int main(int argc, char *argv[]) {
 
         double t_write = MPI_Wtime() - t_write0;
 
-        /* Imbalance: 0% means every rank finished searching together, which
-         * is the ideal. A large value means ranks sat idle waiting. */
+        /* Rank imbalance: gap between slowest and fastest rank's search time */
         double imbalance = 0.0;
         if (max_search > 0.0) {
             imbalance = 100.0 * (max_search - min_search) / max_search;
         }
 
-        /* ---- Phase accounting for Amdahl's Law ---------------------------
-         * parallel : the search, which divides by procs * threads
-         * serial   : broadcast + prefix sum + merge + file write -- work whose
-         *            cost does NOT fall as ranks or threads are added
-         * overhead : the collective communication, which actually GROWS with
-         *            the process count and is the term Amdahl does not model
-         *
-         * Anything unaccounted for (barrier waits, scheduling jitter) is
-         * folded into overhead so the three always sum to the total. */
+        /* Split the total time for Amdahl's Law:
+         *   parallel = search (slowest rank)
+         *   serial   = broadcast + prefix sum + merge + file write
+         *   overhead = everything else (mostly communication) */
         double end_to_end    = max_total + t_write;
         double serial_part   = t_bcast + t_prefix + my_merge + t_write;
         double parallel_part = max_search;
@@ -863,8 +677,7 @@ int main(int argc, char *argv[]) {
         printf("  imbalance (rank) : %.2f %%\n", imbalance);
         printf("  imbalance (thrd) : %.2f %%\n", max_thread_imb);
 
-        /* Unified CSV, same column layout as the serial, pthreads and OpenMP
-         * versions so one parser handles every result file.
+        /* CSV line, same columns as the other versions:
          * impl,scheme,n,procs,threads,nodes,primes,
          * total,serial,parallel,overhead,imbalance,write */
         printf("CSV,hybrid,%s,%d,%d,%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%.2f,%.6f\n",
