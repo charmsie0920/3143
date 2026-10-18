@@ -1,0 +1,198 @@
+#!/bin/bash
+#SBATCH --job-name=wsn_sweep
+#SBATCH --time=00:10:00
+#SBATCH --mem=16G
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=16
+#SBATCH --partition=defq
+#SBATCH --output=slurm-%j.out
+
+# FIT3143 Lab 3 - Task 3 communication analysis on CAAS
+# Charmaine Chee Hing Yi 33520399 | Nazara Glaukofani Lopulisa 35135271
+#
+# Runs the WSN simulation (wsn.c) over a list of configurations ("suites") and
+# keeps every run's logs in its own folder:
+#
+#   runs/<suite>_<m>x<n>_v<variant>_b<base_variant>_p<period>_busy<pct>_r<rep>/
+#       base_*.log      base station log (key performance metrics)
+#       node_*.log      one log per EV charging node
+#       results.csv     one row per message type (read by plot_graphs.py)
+#       stdout.txt      anything the MPI processes printed
+#       DONE            written only when the run shut down cleanly
+#
+# Suites (SUITE=..., several separated by spaces, default "all"):
+#   demo      3x3 at busy 60 % and the low-availability case at busy 90 %   2 runs
+#   variants  3 node exchange x 3 base listener versions on 3x3, 5x6, 1x30  27 runs
+#   period    4x4 with "recent report" period 0, 1, 2, 5, 10, 20 s           6 runs
+#   grid      32 different 2D grid sizes, 4 to 30 nodes                     32 runs
+#   line      line topology 1xN, N = 2 .. 31 (30 instances)                 30 runs
+#
+# CAAS limits: 10 minutes per job, 32 tasks per job, one running job per user.
+# 97 runs do not fit in one job, so the script is RESUMABLE: runs with a DONE
+# file are skipped, and it stops starting new runs before the 10-minute limit.
+# Just submit it again until the last line says "SUITE COMPLETE":
+#
+#   sbatch wsn_sweep.job                                  # everything, in order
+#   sbatch --export=ALL,SUITE=grid wsn_sweep.job          # one suite
+#   sbatch --export=ALL,SUITE="grid line",VARIANT=2 wsn_sweep.job
+#   bash submit_chain.sh 6                                # 6 jobs back to back
+#
+# Placement: 32 tasks = 2 compute nodes x 16. Every run is spread evenly over
+# both nodes (SPREAD=1), so the base station and half of the grid talk across
+# the real network instead of through shared memory. SPREAD=0 packs small runs
+# onto one node.
+#
+# Threads: each MPI process gets 1 CPU but runs k+1 OpenMP threads (1 comm
+# thread + k port threads). The port threads sleep for almost the whole cycle,
+# so they need no cores of their own. OMP_WAIT_POLICY=PASSIVE stops finished
+# threads from spinning at the end of the parallel region and stealing the
+# single CPU from the comm thread during shutdown.
+#
+# Without Slurm (e.g. inside Docker) it falls back to mpirun --oversubscribe,
+# so the same script can be tested locally before uploading.
+
+set -u
+
+# ---------------- parameters (override with --export=ALL,NAME=value) ----------------
+SUITE=${SUITE:-all}
+DURATION=${DURATION:-20}        # seconds the base station runs each simulation
+CYCLE=${CYCLE:-1.0}             # seconds per port update / node cycle
+K=${K:-6}                       # charging ports per node
+THRESHOLD=${THRESHOLD:-2}       # congested when free ports < threshold
+BUSY=${BUSY:-85}                # % chance a port is in use (high -> many alerts to measure)
+VARIANT=${VARIANT:-0}           # node exchange: 0 Neighbor_allgather | 1 Ineighbor_allgather | 2 Isend/Irecv
+BASE_VARIANT=${BASE_VARIANT:-0} # base listener: 0 Irecv+Test | 1 Iprobe+Recv | 2 Recv_init+Testsome
+PERIOD=${PERIOD:-5}             # base station "recent report" window (s)
+POLL=${POLL:-1.0}               # idle polling interval (ms)
+REPS=${REPS:-1}                 # repeats of each configuration
+SPREAD=${SPREAD:-1}             # 1 = spread every run over all allocated nodes
+LIMIT=${LIMIT:-560}             # do not START a run that could end after this (s)
+RETRY=${RETRY:-0}               # 1 = re-run configurations that failed before
+
+GRID_SHAPES="2x2 2x3 3x2 2x4 4x2 3x3 2x5 5x2 2x6 3x4 4x3 6x2 2x7 7x2 3x5 5x3
+             4x4 2x8 8x2 3x6 6x3 4x5 5x4 3x7 7x3 4x6 6x4 5x5 5x6 6x5 3x10 2x15"
+
+WORKDIR=${SLURM_SUBMIT_DIR:-$(pwd)}
+cd "$WORKDIR" || exit 1
+DUR_INT=${DURATION%.*}
+RUN_TIMEOUT=$((DUR_INT + 60))   # a run that hangs is killed, not the whole job
+EST=$((DUR_INT + 20))           # pessimistic wall time of one run (startup + shutdown)
+export OMP_WAIT_POLICY=PASSIVE
+
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+    module load openmpi/4.1.5-gcc-11.2.0-ux65npg
+    NNODES=${SLURM_JOB_NUM_NODES:-1}
+    [ "$SPREAD" = 1 ] || NNODES=1
+    launch() {
+        local np=$1; shift
+        local nodes=$NNODES
+        [ "$np" -lt "$nodes" ] && nodes=$np
+        local per=$(( (np + nodes - 1) / nodes ))
+        timeout "$RUN_TIMEOUT" srun --nodes="$nodes" --ntasks="$np" \
+            --ntasks-per-node="$per" --cpus-per-task=1 "$@"
+    }
+    MAXNP=${SLURM_NTASKS:-32}
+else
+    launch() {
+        local np=$1; shift
+        timeout "$RUN_TIMEOUT" mpirun --oversubscribe --allow-run-as-root -np "$np" "$@"
+    }
+    MAXNP=${MAXNP:-32}
+fi
+
+echo "WSN sweep: suite='$SUITE' duration=${DURATION}s cycle=${CYCLE}s k=$K threshold=$THRESHOLD"
+echo "           busy=$BUSY% variant=$VARIANT base_variant=$BASE_VARIANT period=${PERIOD}s"
+echo "           poll=${POLL}ms reps=$REPS spread=$SPREAD"
+echo "Job ${SLURM_JOB_ID:-local} on $(hostname), nodes: ${SLURM_JOB_NODELIST:-local}"
+echo "Started $(date '+%Y-%m-%d %H:%M:%S')"
+echo
+
+# compile on the compute node, against the same Open MPI the runs use
+mpicc -fopenmp -O2 -Wall -o wsn wsn.c || { echo "compile failed"; exit 1; }
+
+# one line per run: m n variant base_variant period busy_pct
+suite_configs() {
+    case $1 in
+        demo)
+            echo "3 3 $VARIANT $BASE_VARIANT $PERIOD 60"
+            echo "3 3 $VARIANT $BASE_VARIANT $PERIOD 90" ;;
+        variants)
+            for s in "3 3" "5 6" "1 30"; do
+                for v in 0 1 2; do
+                    for b in 0 1 2; do echo "$s $v $b $PERIOD $BUSY"; done
+                done
+            done ;;
+        period)
+            for p in 0 1 2 5 10 20; do echo "4 4 $VARIANT $BASE_VARIANT $p $BUSY"; done ;;
+        grid)
+            for s in $GRID_SHAPES; do echo "${s%x*} ${s#*x} $VARIANT $BASE_VARIANT $PERIOD $BUSY"; done ;;
+        line)
+            for n in $(seq 2 31); do echo "1 $n $VARIANT $BASE_VARIANT $PERIOD $BUSY"; done ;;
+        *)
+            echo "unknown suite '$1'" >&2 ;;
+    esac
+}
+
+[ "$SUITE" = all ] && SUITE="demo variants period grid line"
+
+ran=0; skipped=0; failed=0; out_of_time=0
+for suite in $SUITE; do
+    while read -r m n v b p busy; do
+        for rep in $(seq 1 "$REPS"); do
+            tag="${suite}_${m}x${n}_v${v}_b${b}_p${p}_busy${busy}_r${rep}"
+            dir="runs/$tag"
+            np=$((m * n + 1))
+
+            if [ -f "$dir/DONE" ]; then skipped=$((skipped + 1)); continue; fi
+            if [ -f "$dir/FAILED" ] && [ "$RETRY" != 1 ]; then skipped=$((skipped + 1)); continue; fi
+            if [ "$np" -gt "$MAXNP" ]; then
+                echo "SKIP $tag: needs $np tasks, job has $MAXNP"; continue
+            fi
+            if [ $((SECONDS + EST)) -gt "$LIMIT" ]; then out_of_time=1; break 3; fi
+
+            rm -rf "$dir"; mkdir -p "$dir"
+            t0=$SECONDS
+            # stdin from /dev/null: srun/mpirun would otherwise swallow the config list
+            ( cd "$dir" && launch "$np" "$WORKDIR/wsn" "$m" "$n" "$K" "$CYCLE" "$DURATION" \
+                  "$THRESHOLD" "$busy" "$v" "$p" "$b" "$POLL" ) < /dev/null > "$dir/stdout.txt" 2>&1
+            rc=$?
+
+            base_log=$(ls "$dir"/base_*.log 2>/dev/null | head -n 1)
+            if [ $rc -eq 0 ] && [ -s "$dir/results.csv" ] && [ -n "$base_log" ] \
+               && grep -q "shut down cleanly" "$base_log"; then
+                touch "$dir/DONE"
+                ran=$((ran + 1))
+                alerts=$(grep -m1 '^alerts' "$base_log" | sed 's/.*: //')
+                printf "OK   %-48s np=%-3d %4ds  %s\n" "$tag" "$np" $((SECONDS - t0)) "$alerts"
+            else
+                echo "rc=$rc" > "$dir/FAILED"
+                failed=$((failed + 1))
+                printf "FAIL %-48s np=%-3d %4ds  rc=%d (see %s/stdout.txt)\n" "$tag" "$np" \
+                    $((SECONDS - t0)) $rc "$dir"
+            fi
+        done
+    done < <(suite_configs "$suite")
+done
+
+# how much is left (DONE and FAILED both count as finished unless RETRY=1)
+left=0
+for suite in $SUITE; do
+    while read -r m n v b p busy; do
+        for rep in $(seq 1 "$REPS"); do
+            d="runs/${suite}_${m}x${n}_v${v}_b${b}_p${p}_busy${busy}_r${rep}"
+            [ -f "$d/DONE" ] && continue
+            [ -f "$d/FAILED" ] && [ "$RETRY" != 1 ] && continue
+            left=$((left + 1))
+        done
+    done < <(suite_configs "$suite")
+done
+
+echo
+echo "Finished $(date '+%Y-%m-%d %H:%M:%S'): $ran ran, $failed failed, $skipped already done, $left left"
+if [ $left -gt 0 ]; then
+    [ $out_of_time = 1 ] && echo "Stopped early to stay inside the 10-minute job limit."
+    echo "RESUBMIT the same command to continue ($left runs left)."
+else
+    echo "SUITE COMPLETE: $SUITE"
+fi
