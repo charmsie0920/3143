@@ -11,19 +11,19 @@
 # FIT3143 Lab 3 - Task 3 communication analysis on CAAS
 # Charmaine Chee Hing Yi 33520399 | Nazara Glaukofani Lopulisa 35135271
 #
-# Runs the WSN simulation (wsn.c) over a list of configurations ("suites") and
+# Runs the WSN simulation (wsn_ver3.c) over a list of configurations ("suites") and
 # keeps every run's logs in its own folder:
 #
 #   runs/<suite>_<m>x<n>_v<variant>_b<base_variant>_p<period>_busy<pct>_r<rep>/
-#       base_*.log      base station log (key performance metrics)
-#       node_*.log      one log per EV charging node
-#       results.csv     one row per message type (read by plot_graphs.py)
+#       run_*/base_station.log   base station log (key performance metrics)
+#       run_*/node_*.log         one log per EV charging node
+#       results.csv              one row per message type (read by plot_task3.py)
 #       stdout.txt      anything the MPI processes printed
 #       DONE            written only when the run shut down cleanly
 #
 # Suites (SUITE=..., several separated by spaces, default "all"):
 #   demo      3x3 at busy 60 % and the low-availability case at busy 90 %   2 runs
-#   variants  3 node exchange x 3 base listener versions on 3x3, 5x6, 1x30  27 runs
+#   variants  4 node exchange x 3 base listener versions on 3x3, 5x6, 1x30  36 runs
 #   period    4x4 with "recent report" period 0, 1, 2, 5, 10, 20 s           6 runs
 #   grid      32 different 2D grid sizes, 4 to 30 nodes                     32 runs
 #   line      line topology 1xN, N = 2 .. 31 (30 instances)                 30 runs
@@ -61,8 +61,11 @@ CYCLE=${CYCLE:-1.0}             # seconds per port update / node cycle
 K=${K:-6}                       # charging ports per node
 THRESHOLD=${THRESHOLD:-2}       # congested when free ports < threshold
 BUSY=${BUSY:-85}                # % chance a port is in use (high -> many alerts to measure)
-VARIANT=${VARIANT:-0}           # node exchange: 0 Neighbor_allgather | 1 Ineighbor_allgather | 2 Isend/Irecv
-BASE_VARIANT=${BASE_VARIANT:-0} # base listener: 0 Irecv+Test | 1 Iprobe+Recv | 2 Recv_init+Testsome
+VARIANT=${VARIANT:-0}           # node exchange: 0 ON-DEMAND | 1 periodic Neighbor_allgather
+                                #                2 periodic Ineighbor_allgather | 3 periodic Isend/Irecv
+BASE_VARIANT=${BASE_VARIANT:-0} # base listener: 0 Iprobe+Recv | 1 Irecv+Test | 2 Recv_init+Testsome
+NBR_TIMEOUT=${NBR_TIMEOUT:-500} # on-demand: ms to wait for a neighbour's answer
+SRC=${SRC:-wsn_ver3.c}          # source file compiled at the start of the job
 PERIOD=${PERIOD:-5}             # base station "recent report" window (s)
 POLL=${POLL:-1.0}               # idle polling interval (ms)
 REPS=${REPS:-1}                 # repeats of each configuration
@@ -109,7 +112,7 @@ echo "Started $(date '+%Y-%m-%d %H:%M:%S')"
 echo
 
 # compile on the compute node, against the same Open MPI the runs use
-mpicc -fopenmp -O2 -Wall -o wsn wsn.c || { echo "compile failed"; exit 1; }
+mpicc -fopenmp -O2 -Wall -o wsn "$SRC" || { echo "compile failed"; exit 1; }
 
 # one line per run: m n variant base_variant period busy_pct
 suite_configs() {
@@ -119,7 +122,7 @@ suite_configs() {
             echo "3 3 $VARIANT $BASE_VARIANT $PERIOD 90" ;;
         variants)
             for s in "3 3" "5 6" "1 30"; do
-                for v in 0 1 2; do
+                for v in 0 1 2 3; do
                     for b in 0 1 2; do echo "$s $v $b $PERIOD $BUSY"; done
                 done
             done ;;
@@ -155,10 +158,11 @@ for suite in $SUITE; do
             t0=$SECONDS
             # stdin from /dev/null: srun/mpirun would otherwise swallow the config list
             ( cd "$dir" && launch "$np" "$WORKDIR/wsn" "$m" "$n" "$K" "$CYCLE" "$DURATION" \
-                  "$THRESHOLD" "$busy" "$v" "$p" "$b" "$POLL" ) < /dev/null > "$dir/stdout.txt" 2>&1
+                  "$THRESHOLD" "$busy" "$v" "$p" "$b" "$POLL" "$NBR_TIMEOUT" -1 . ) \
+                  < /dev/null > "$dir/stdout.txt" 2>&1
             rc=$?
 
-            base_log=$(ls "$dir"/base_*.log 2>/dev/null | head -n 1)
+            base_log=$(ls "$dir"/run_*/base_station.log 2>/dev/null | head -n 1)
             if [ $rc -eq 0 ] && [ -s "$dir/results.csv" ] && [ -n "$base_log" ] \
                && grep -q "shut down cleanly" "$base_log"; then
                 touch "$dir/DONE"

@@ -1,0 +1,36 @@
+Machines used:
+     10 student-caas-n01
+== T1 3x3 normal load
+Base station: 3x3 grid, 9 nodes, on-demand, running 20 s
+Base station: time up, sending TERMINATE to 9 nodes
+Base station: all nodes terminated. 0 alerts, 214 neighbour messages. Logs in test_logs/run_3x3_v0
+== T2 3x3 high load (alerts)
+Base station: 3x3 grid, 9 nodes, on-demand, running 20 s
+Base station: time up, sending TERMINATE to 9 nodes
+Base station: all nodes terminated. 121 alerts, 838 neighbour messages. Logs in test_logs_high/run_3x3_v0
+== T3 2x3 non-square
+Base station: 2x3 grid, 6 nodes, on-demand, running 15 s
+Base station: time up, sending TERMINATE to 6 nodes
+Base station: all nodes terminated. 32 alerts, 306 neighbour messages. Logs in test_logs/run_2x3_v0
+== T4 1x6 line
+Base station: 1x6 grid, 6 nodes, on-demand, running 15 s
+Base station: time up, sending TERMINATE to 6 nodes
+Base station: all nodes terminated. 44 alerts, 222 neighbour messages. Logs in test_logs/run_1x6_v0
+== T5 dead node 4
+Base station: 3x3 grid, 9 nodes, on-demand, running 15 s
+Base station: time up, sending TERMINATE to 9 nodes
+Base station: all nodes terminated. 61 alerts, 413 neighbour messages. Logs in test_logs_dead/run_3x3_v0
+== T6 wrong process count (should print an error)
+need -np 10 for a 3x3 grid (got 5)
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
+mpirun detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[44025,1],1]
+  Exit code:    1
+--------------------------------------------------------------------------
+== ALL DONE
