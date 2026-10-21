@@ -1,0 +1,32 @@
+node cart=0 world=1 coords=(0,0) k=6 threshold=2 variant=0 (on-demand) clock_offset=-0.000008 s
+  neighbour up    : none
+  neighbour down  : node 3 (1,0)
+  neighbour left  : none
+  neighbour right : node 1 (0,1)
+YYYY MM DD HH MM SS | avail | ports(1=used) | nbr avail u/d/l/r (-1 none, -2 no reply) | xchg(ms) | action
+2026 10 21 14 41 59 |     3 | 110010 |  -  -  -  - |        - | ok
+2026 10 21 14 42 00 |     0 | 111111 | -1  2 -1  2 |    2.187 | CONGESTED -> redirect EVs to node 3 (1,0) avail=2
+2026 10 21 14 42 01 |     3 | 100101 |  -  -  -  - |        - | ok
+2026 10 21 14 42 02 |     5 | 100000 |  -  -  -  - |        - | ok
+2026 10 21 14 42 03 |     1 | 110111 | -1  1 -1  1 |    2.144 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] forward EVs to 3 node(s) at distance 2: node2(0,2) node4(1,1) node6(2,0) (round trip 2.181 ms, base->node 1.267 ms)
+2026 10 21 14 42 04 |     2 | 111100 |  -  -  -  - |        - | ok
+2026 10 21 14 42 05 |     3 | 110001 |  -  -  -  - |        - | ok
+2026 10 21 14 42 06 |     0 | 111111 | -1  3 -1  1 |    2.135 | CONGESTED -> redirect EVs to node 3 (1,0) avail=3
+2026 10 21 14 42 07 |     2 | 001111 |  -  -  -  - |        - | ok
+2026 10 21 14 42 08 |     2 | 111001 |  -  -  -  - |        - | ok
+2026 10 21 14 42 09 |     3 | 101010 |  -  -  -  - |        - | ok
+2026 10 21 14 42 10 |     2 | 011011 |  -  -  -  - |        - | ok
+2026 10 21 14 42 11 |     4 | 100100 |  -  -  -  - |        - | ok
+2026 10 21 14 42 12 |     0 | 111111 | -1  3 -1  2 |    2.172 | CONGESTED -> redirect EVs to node 3 (1,0) avail=3
+2026 10 21 14 42 13 |     3 | 011010 |  -  -  -  - |        - | ok
+2026 10 21 14 42 14 |     2 | 111001 |  -  -  -  - |        - | ok
+2026 10 21 14 42 15 |     2 | 011011 |  -  -  -  - |        - | ok
+2026 10 21 14 42 16 |     3 | 100011 |  -  -  -  - |        - | ok
+2026 10 21 14 42 17 |     2 | 101011 |  -  -  -  - |        - | ok
+2026 10 21 14 42 18 |     3 | 111000 |  -  -  -  - |        - | ok
+
+TERMINATED by base station (termination delay 1.744 ms)
+summary: cycles=20 congested=4 local_redirects=3 reports_to_base=1 replies=1
+         neighbour msgs sent=17 recv=17 bytes=272 rounds=4 avg_round=2.159 ms timeouts=0
+         alert round trip avg=2.181 ms

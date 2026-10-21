@@ -1,0 +1,31 @@
+node cart=1 world=2 coords=(0,1) k=6 threshold=2 variant=0 (on-demand) clock_offset=-0.000017 s
+  neighbour up    : none
+  neighbour down  : node 4 (1,1)
+  neighbour left  : node 0 (0,0)
+  neighbour right : node 2 (0,2)
+YYYY MM DD HH MM SS | avail | ports(1=used) | nbr avail u/d/l/r (-1 none, -2 no reply) | xchg(ms) | action
+2026 10 20 04 14 44 |     1 | 111101 | -1  5  3  3 |    3.329 | CONGESTED -> redirect EVs to node 4 (1,1) avail=5
+2026 10 20 04 14 45 |     5 | 000100 |  -  -  -  - |        - | ok
+2026 10 20 04 14 46 |     2 | 110101 |  -  -  -  - |        - | ok
+2026 10 20 04 14 47 |     1 | 011111 | -1  3  1  1 |    2.192 | CONGESTED -> redirect EVs to node 4 (1,1) avail=3
+2026 10 20 04 14 48 |     4 | 001100 |  -  -  -  - |        - | ok
+2026 10 20 04 14 49 |     1 | 111110 | -1  1  4  3 |    2.220 | CONGESTED -> redirect EVs to node 0 (0,0) avail=4
+2026 10 20 04 14 50 |     3 | 110010 |  -  -  -  - |        - | ok
+2026 10 20 04 14 51 |     5 | 000100 |  -  -  -  - |        - | ok
+2026 10 20 04 14 52 |     2 | 101101 |  -  -  -  - |        - | ok
+2026 10 20 04 14 53 |     1 | 111110 | -1  2  1  3 |    2.208 | CONGESTED -> redirect EVs to node 2 (0,2) avail=3
+2026 10 20 04 14 54 |     2 | 110101 |  -  -  -  - |        - | ok
+2026 10 20 04 14 55 |     2 | 111001 |  -  -  -  - |        - | ok
+2026 10 20 04 14 56 |     1 | 111110 | -1  1  2  5 |    2.233 | CONGESTED -> redirect EVs to node 2 (0,2) avail=5
+2026 10 20 04 14 57 |     1 | 111110 | -1  1  3  1 |    2.205 | CONGESTED -> redirect EVs to node 0 (0,0) avail=3
+2026 10 20 04 14 58 |     2 | 001111 |  -  -  -  - |        - | ok
+2026 10 20 04 14 59 |     4 | 011000 |  -  -  -  - |        - | ok
+2026 10 20 04 15 00 |     3 | 110001 |  -  -  -  - |        - | ok
+2026 10 20 04 15 01 |     3 | 110001 |  -  -  -  - |        - | ok
+2026 10 20 04 15 02 |     4 | 110000 |  -  -  -  - |        - | ok
+2026 10 20 04 15 03 |     3 | 001101 |  -  -  -  - |        - | ok
+
+TERMINATED by base station (termination delay 1.574 ms)
+summary: cycles=20 congested=6 local_redirects=6 reports_to_base=0 replies=0
+         neighbour msgs sent=33 recv=33 bytes=528 rounds=6 avg_round=2.398 ms timeouts=0
+         alert round trip avg=0.000 ms

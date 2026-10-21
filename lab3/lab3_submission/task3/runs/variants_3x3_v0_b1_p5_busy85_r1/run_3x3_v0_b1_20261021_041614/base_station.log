@@ -1,0 +1,408 @@
+BASE STATION started 2026-10-21 04:16:14
+grid=3x3 (9 nodes, grid) k=6 threshold=2 busy=85% cycle=1.00s duration=20.0s
+node exchange=0 (on-demand), base listener=1 (Irecv+Test/Isend), period=5.00s, poll=1.00ms, nbr_timeout=500ms, dead_node=-1
+message sizes: report 480 B, reply 792 B, termination 8 B, neighbour request/response 8 B
+
+[t=    0.997s] ALERT #1 from node 0 (world 1) at (0,0), cycle 1, detected 2026-10-21 04:16:15
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0
+    neighbours (2): down=node3(1,0) avail=1 last_report=never right=node1(0,1) avail=0 last_report=never
+    neighbour communication: 4 msgs, 32 bytes, 2.191 ms | report delay 0.278 ms
+    decision: 0/2 neighbours reported within 5.00s -> 3 nearest available node(s) at distance 2: node2(0,2) node4(1,1) node6(2,0) | processing 0.001 ms
+[t=    0.999s] ALERT #2 from node 4 (world 5) at (1,1), cycle 1, detected 2026-10-21 04:16:15
+    availability 1/6 free, ports [111110] (1=in use), recent availability: 1
+    neighbours (4): up=node1(0,1) avail=0 last_report=never down=node7(2,1) avail=0 last_report=never left=node3(1,0) avail=1 last_report=never right=node5(1,2) avail=0 last_report=never
+    neighbour communication: 8 msgs, 64 bytes, 2.526 ms | report delay 0.785 ms
+    decision: 0/4 neighbours reported within 5.00s -> 3 nearest available node(s) at distance 2: node2(0,2) node6(2,0) node8(2,2) | processing 0.001 ms
+[t=    1.000s] ALERT #3 from node 6 (world 7) at (2,0), cycle 1, detected 2026-10-21 04:16:15
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0
+    neighbours (2): up=node3(1,0) avail=1 last_report=never right=node7(2,1) avail=0 last_report=never
+    neighbour communication: 4 msgs, 32 bytes, 1.155 ms | report delay 0.256 ms
+    decision: 0/2 neighbours reported within 5.00s -> 1 nearest available node(s) at distance 2: node8(2,2) | processing 0.001 ms
+[t=    1.001s] ALERT #4 from node 3 (world 4) at (1,0), cycle 1, detected 2026-10-21 04:16:15
+    availability 1/6 free, ports [111011] (1=in use), recent availability: 1
+    neighbours (3): up=node0(0,0) avail=0 last_report=0.00s ago down=node6(2,0) avail=0 last_report=0.00s ago right=node4(1,1) avail=1 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 1.152 ms | report delay 0.920 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    1.997s] ALERT #5 from node 0 (world 1) at (0,0), cycle 2, detected 2026-10-21 04:16:16
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 0 1
+    neighbours (2): down=node3(1,0) avail=1 last_report=1.00s ago right=node1(0,1) avail=1 last_report=never
+    neighbour communication: 4 msgs, 32 bytes, 2.175 ms | report delay 0.864 ms | node's previous alert round trip 2.123 ms
+    decision: 1/2 neighbours reported within 5.00s -> 1 nearest available node(s) at distance 2: node2(0,2) | processing 0.002 ms
+[t=    2.000s] ALERT #6 from node 2 (world 3) at (0,2), cycle 2, detected 2026-10-21 04:16:16
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 0
+    neighbours (2): down=node5(1,2) avail=1 last_report=never left=node1(0,1) avail=1 last_report=never
+    neighbour communication: 4 msgs, 32 bytes, 2.200 ms | report delay 0.776 ms
+    decision: 0/2 neighbours reported within 5.00s -> 1 nearest available node(s) at distance 2: node8(2,2) | processing 0.000 ms
+[t=    2.997s] ALERT #7 from node 0 (world 1) at (0,0), cycle 3, detected 2026-10-21 04:16:17
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 0 1 1
+    neighbours (2): down=node3(1,0) avail=0 last_report=2.00s ago right=node1(0,1) avail=0 last_report=never
+    neighbour communication: 4 msgs, 32 bytes, 2.134 ms | report delay 0.396 ms | node's previous alert round trip 2.155 ms
+    decision: 1/2 neighbours reported within 5.00s -> 1 nearest available node(s) at distance 4: node8(2,2) | processing 0.001 ms
+[t=    2.999s] ALERT #8 from node 1 (world 2) at (0,1), cycle 3, detected 2026-10-21 04:16:17
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0
+    neighbours (3): down=node4(1,1) avail=1 last_report=2.00s ago left=node0(0,0) avail=1 last_report=0.00s ago right=node2(0,2) avail=1 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.228 ms | report delay 0.734 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    2.999s] ALERT #9 from node 4 (world 5) at (1,1), cycle 3, detected 2026-10-21 04:16:17
+    availability 1/6 free, ports [011111] (1=in use), recent availability: 1 2 1
+    neighbours (4): up=node1(0,1) avail=0 last_report=0.00s ago down=node7(2,1) avail=1 last_report=never left=node3(1,0) avail=0 last_report=2.00s ago right=node5(1,2) avail=0 last_report=never
+    neighbour communication: 8 msgs, 64 bytes, 2.255 ms | report delay 0.736 ms | node's previous alert round trip 2.233 ms
+    decision: 2/4 neighbours reported within 5.00s -> 1 nearest available node(s) at distance 2: node8(2,2) | processing 0.000 ms
+[t=    2.999s] ALERT #10 from node 2 (world 3) at (0,2), cycle 3, detected 2026-10-21 04:16:17
+    availability 1/6 free, ports [011111] (1=in use), recent availability: 2 0 1
+    neighbours (2): down=node5(1,2) avail=0 last_report=never left=node1(0,1) avail=0 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.076 ms | report delay 0.423 ms | node's previous alert round trip 2.161 ms
+    decision: 1/2 neighbours reported within 5.00s -> 1 nearest available node(s) at distance 2: node8(2,2) | processing 0.000 ms
+[t=    3.000s] ALERT #11 from node 5 (world 6) at (1,2), cycle 3, detected 2026-10-21 04:16:17
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0
+    neighbours (3): up=node2(0,2) avail=1 last_report=0.00s ago down=node8(2,2) avail=1 last_report=never left=node4(1,1) avail=1 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.189 ms | report delay 0.528 ms
+    decision: 2/3 neighbours reported within 5.00s -> no available node in the whole grid | processing 0.000 ms
+[t=    3.000s] ALERT #12 from node 6 (world 7) at (2,0), cycle 3, detected 2026-10-21 04:16:17
+    availability 1/6 free, ports [111011] (1=in use), recent availability: 0 1 1
+    neighbours (2): up=node3(1,0) avail=0 last_report=2.00s ago right=node7(2,1) avail=1 last_report=never
+    neighbour communication: 4 msgs, 32 bytes, 1.132 ms | report delay 0.455 ms | node's previous alert round trip 2.186 ms
+    decision: 1/2 neighbours reported within 5.00s -> no available node in the whole grid | processing 0.000 ms
+[t=    3.001s] ALERT #13 from node 3 (world 4) at (1,0), cycle 3, detected 2026-10-21 04:16:17
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 1 1 0
+    neighbours (3): up=node0(0,0) avail=1 last_report=0.00s ago down=node6(2,0) avail=1 last_report=0.00s ago right=node4(1,1) avail=1 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 1.131 ms | report delay 0.920 ms | node's previous alert round trip 2.163 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    3.003s] ALERT #14 from node 7 (world 8) at (2,1), cycle 3, detected 2026-10-21 04:16:17
+    availability 1/6 free, ports [011111] (1=in use), recent availability: 0 2 1
+    neighbours (3): up=node4(1,1) avail=1 last_report=0.00s ago left=node6(2,0) avail=1 last_report=0.00s ago right=node8(2,2) avail=1 last_report=never
+    neighbour communication: 6 msgs, 48 bytes, 2.145 ms | report delay 0.619 ms
+    decision: 2/3 neighbours reported within 5.00s -> no available node in the whole grid | processing 0.000 ms
+[t=    3.004s] ALERT #15 from node 8 (world 9) at (2,2), cycle 3, detected 2026-10-21 04:16:17
+    availability 1/6 free, ports [110111] (1=in use), recent availability: 2 2 1
+    neighbours (2): up=node5(1,2) avail=0 last_report=0.00s ago left=node7(2,1) avail=0 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.141 ms | report delay 0.350 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    3.997s] ALERT #16 from node 0 (world 1) at (0,0), cycle 4, detected 2026-10-21 04:16:18
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 0
+    neighbours (2): down=node3(1,0) avail=1 last_report=1.00s ago right=node1(0,1) avail=1 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.144 ms | report delay 0.612 ms | node's previous alert round trip 2.133 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    3.998s] ALERT #17 from node 4 (world 5) at (1,1), cycle 4, detected 2026-10-21 04:16:18
+    availability 1/6 free, ports [011111] (1=in use), recent availability: 1 2 1 1
+    neighbours (4): up=node1(0,1) avail=1 last_report=1.00s ago down=node7(2,1) avail=0 last_report=0.99s ago left=node3(1,0) avail=1 last_report=1.00s ago right=node5(1,2) avail=0 last_report=1.00s ago
+    neighbour communication: 8 msgs, 64 bytes, 2.277 ms | report delay 0.200 ms | node's previous alert round trip 2.214 ms
+    decision: 4/4 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    3.999s] ALERT #18 from node 1 (world 2) at (0,1), cycle 4, detected 2026-10-21 04:16:18
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 0 1 0 1
+    neighbours (3): down=node4(1,1) avail=1 last_report=0.00s ago left=node0(0,0) avail=0 last_report=0.00s ago right=node2(0,2) avail=1 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.183 ms | report delay 0.895 ms | node's previous alert round trip 2.163 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    3.999s] ALERT #19 from node 2 (world 3) at (0,2), cycle 4, detected 2026-10-21 04:16:18
+    availability 1/6 free, ports [111011] (1=in use), recent availability: 2 0 1 1
+    neighbours (2): down=node5(1,2) avail=0 last_report=1.00s ago left=node1(0,1) avail=1 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.079 ms | report delay 0.611 ms | node's previous alert round trip 2.135 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    4.000s] ALERT #20 from node 5 (world 6) at (1,2), cycle 4, detected 2026-10-21 04:16:18
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0 0
+    neighbours (3): up=node2(0,2) avail=1 last_report=0.00s ago down=node8(2,2) avail=0 last_report=1.00s ago left=node4(1,1) avail=1 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.261 ms | report delay 0.738 ms | node's previous alert round trip 2.165 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    4.000s] ALERT #21 from node 6 (world 7) at (2,0), cycle 4, detected 2026-10-21 04:16:18
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 0
+    neighbours (2): up=node3(1,0) avail=1 last_report=1.00s ago right=node7(2,1) avail=0 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.140 ms | report delay 0.191 ms | node's previous alert round trip 2.173 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    4.002s] ALERT #22 from node 3 (world 4) at (1,0), cycle 4, detected 2026-10-21 04:16:18
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 1 1 0 1
+    neighbours (3): up=node0(0,0) avail=0 last_report=0.01s ago down=node6(2,0) avail=0 last_report=0.00s ago right=node4(1,1) avail=0 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.187 ms | report delay 0.944 ms | node's previous alert round trip 2.149 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    4.003s] ALERT #23 from node 7 (world 8) at (2,1), cycle 4, detected 2026-10-21 04:16:18
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 2 1 0
+    neighbours (3): up=node4(1,1) avail=0 last_report=0.01s ago left=node6(2,0) avail=0 last_report=0.00s ago right=node8(2,2) avail=0 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 3.265 ms | report delay 0.240 ms | node's previous alert round trip 2.168 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    4.006s] ALERT #24 from node 8 (world 9) at (2,2), cycle 4, detected 2026-10-21 04:16:18
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 2 1 0
+    neighbours (2): up=node5(1,2) avail=0 last_report=0.01s ago left=node7(2,1) avail=0 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 3.221 ms | report delay 0.900 ms | node's previous alert round trip 2.179 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    5.999s] ALERT #25 from node 2 (world 3) at (0,2), cycle 6, detected 2026-10-21 04:16:20
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 0 1 1 1 0
+    neighbours (2): down=node5(1,2) avail=0 last_report=2.00s ago left=node1(0,1) avail=0 last_report=2.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.080 ms | report delay 0.500 ms | node's previous alert round trip 2.142 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.002 ms
+[t=    6.000s] ALERT #26 from node 5 (world 6) at (1,2), cycle 6, detected 2026-10-21 04:16:20
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0 0 1 0
+    neighbours (3): up=node2(0,2) avail=0 last_report=0.00s ago down=node8(2,2) avail=0 last_report=1.99s ago left=node4(1,1) avail=0 last_report=2.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.202 ms | report delay 1.065 ms | node's previous alert round trip 2.257 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    6.003s] ALERT #27 from node 7 (world 8) at (2,1), cycle 6, detected 2026-10-21 04:16:20
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 2 1 0 1 0
+    neighbours (3): up=node4(1,1) avail=0 last_report=2.01s ago left=node6(2,0) avail=1 last_report=2.00s ago right=node8(2,2) avail=0 last_report=2.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.165 ms | report delay 0.940 ms | node's previous alert round trip 2.179 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    6.005s] ALERT #28 from node 8 (world 9) at (2,2), cycle 6, detected 2026-10-21 04:16:20
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 2 1 0 2 0
+    neighbours (2): up=node5(1,2) avail=0 last_report=0.01s ago left=node7(2,1) avail=0 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 3.201 ms | report delay 0.475 ms | node's previous alert round trip 2.196 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    7.000s] ALERT #29 from node 5 (world 6) at (1,2), cycle 7, detected 2026-10-21 04:16:21
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0 0 1 0 0
+    neighbours (3): up=node2(0,2) avail=0 last_report=1.00s ago down=node8(2,2) avail=1 last_report=0.99s ago left=node4(1,1) avail=1 last_report=3.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.188 ms | report delay 0.858 ms | node's previous alert round trip 3.248 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    7.006s] ALERT #30 from node 8 (world 9) at (2,2), cycle 7, detected 2026-10-21 04:16:21
+    availability 1/6 free, ports [101111] (1=in use), recent availability: 2 2 1 0 2 0 1
+    neighbours (2): up=node5(1,2) avail=0 last_report=0.01s ago left=node7(2,1) avail=0 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 3.231 ms | report delay 1.044 ms | node's previous alert round trip 2.191 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    7.997s] ALERT #31 from node 0 (world 1) at (0,0), cycle 8, detected 2026-10-21 04:16:22
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 0 2 2 0 0
+    neighbours (2): down=node3(1,0) avail=1 last_report=3.99s ago right=node1(0,1) avail=1 last_report=4.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.157 ms | report delay 0.794 ms | node's previous alert round trip 2.145 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.002 ms
+[t=    7.999s] ALERT #32 from node 4 (world 5) at (1,1), cycle 8, detected 2026-10-21 04:16:22
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 1 2 1 1 1 0 1 0
+    neighbours (4): up=node1(0,1) avail=1 last_report=4.00s ago down=node7(2,1) avail=1 last_report=2.00s ago left=node3(1,0) avail=1 last_report=4.00s ago right=node5(1,2) avail=0 last_report=1.00s ago
+    neighbour communication: 8 msgs, 64 bytes, 2.244 ms | report delay 1.115 ms | node's previous alert round trip 2.170 ms
+    decision: 4/4 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    8.000s] ALERT #33 from node 3 (world 4) at (1,0), cycle 8, detected 2026-10-21 04:16:22
+    availability 1/6 free, ports [101111] (1=in use), recent availability: 1 1 0 1 2 2 0 1
+    neighbours (3): up=node0(0,0) avail=0 last_report=0.00s ago down=node6(2,0) avail=1 last_report=4.00s ago right=node4(1,1) avail=0 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 1.131 ms | report delay 0.282 ms | node's previous alert round trip 2.152 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    8.001s] ALERT #34 from node 6 (world 7) at (2,0), cycle 8, detected 2026-10-21 04:16:22
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 0 1 1 0 1 1 2 1
+    neighbours (2): up=node3(1,0) avail=1 last_report=0.00s ago right=node7(2,1) avail=1 last_report=2.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.101 ms | report delay 1.193 ms | node's previous alert round trip 2.181 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    8.004s] ALERT #35 from node 7 (world 8) at (2,1), cycle 8, detected 2026-10-21 04:16:22
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 0 2 1 0 1 0 0 1
+    neighbours (3): up=node4(1,1) avail=0 last_report=0.00s ago left=node6(2,0) avail=1 last_report=0.00s ago right=node8(2,2) avail=1 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 3.209 ms | report delay 0.537 ms | node's previous alert round trip 2.176 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    8.004s] ALERT #36 from node 8 (world 9) at (2,2), cycle 8, detected 2026-10-21 04:16:22
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 2 2 1 0 2 0 1 1
+    neighbours (2): up=node5(1,2) avail=0 last_report=1.00s ago left=node7(2,1) avail=1 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.155 ms | report delay 0.201 ms | node's previous alert round trip 3.263 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    8.997s] ALERT #37 from node 0 (world 1) at (0,0), cycle 9, detected 2026-10-21 04:16:23
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 0 2 2 0 0 0
+    neighbours (2): down=node3(1,0) avail=1 last_report=1.00s ago right=node1(0,1) avail=0 last_report=5.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.146 ms | report delay 1.027 ms | node's previous alert round trip 2.153 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.002 ms
+[t=    8.999s] ALERT #38 from node 1 (world 2) at (0,1), cycle 9, detected 2026-10-21 04:16:23
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0 1 2 0 2 1 0
+    neighbours (3): down=node4(1,1) avail=1 last_report=1.00s ago left=node0(0,0) avail=0 last_report=0.00s ago right=node2(0,2) avail=0 last_report=3.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.223 ms | report delay 0.950 ms | node's previous alert round trip 2.163 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    8.999s] ALERT #39 from node 2 (world 3) at (0,2), cycle 9, detected 2026-10-21 04:16:23
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 0 1 1 1 0 0 2 0
+    neighbours (2): down=node5(1,2) avail=0 last_report=2.00s ago left=node1(0,1) avail=0 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.213 ms | report delay 0.246 ms | node's previous alert round trip 2.139 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=    9.000s] ALERT #40 from node 5 (world 6) at (1,2), cycle 9, detected 2026-10-21 04:16:23
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0 0 1 0 0 0 0
+    neighbours (3): up=node2(0,2) avail=0 last_report=0.00s ago down=node8(2,2) avail=1 last_report=1.00s ago left=node4(1,1) avail=1 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.159 ms | report delay 0.991 ms | node's previous alert round trip 2.154 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    9.996s] ALERT #41 from node 0 (world 1) at (0,0), cycle 10, detected 2026-10-21 04:16:24
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 0 2 2 0 0 0 0
+    neighbours (2): down=node3(1,0) avail=0 last_report=2.00s ago right=node1(0,1) avail=1 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.141 ms | report delay 0.327 ms | node's previous alert round trip 2.147 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=    9.998s] ALERT #42 from node 1 (world 2) at (0,1), cycle 10, detected 2026-10-21 04:16:24
+    availability 1/6 free, ports [111011] (1=in use), recent availability: 0 1 0 1 2 0 2 1 0 1
+    neighbours (3): down=node4(1,1) avail=0 last_report=2.00s ago left=node0(0,0) avail=0 last_report=0.00s ago right=node2(0,2) avail=0 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.161 ms | report delay 0.311 ms | node's previous alert round trip 2.153 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   10.000s] ALERT #43 from node 3 (world 4) at (1,0), cycle 10, detected 2026-10-21 04:16:24
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 1 1 0 1 2 2 0 1 1 0
+    neighbours (3): up=node0(0,0) avail=0 last_report=0.00s ago down=node6(2,0) avail=0 last_report=2.00s ago right=node4(1,1) avail=0 last_report=2.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 1.095 ms | report delay 0.212 ms | node's previous alert round trip 2.143 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   10.996s] ALERT #44 from node 0 (world 1) at (0,0), cycle 11, detected 2026-10-21 04:16:25
+    availability 1/6 free, ports [011111] (1=in use), recent availability: 0 1 1 0 2 2 0 0 0 0 1
+    neighbours (2): down=node3(1,0) avail=1 last_report=1.00s ago right=node1(0,1) avail=0 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.167 ms | report delay 0.062 ms | node's previous alert round trip 2.142 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   10.998s] ALERT #45 from node 1 (world 2) at (0,1), cycle 11, detected 2026-10-21 04:16:25
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0 1 2 0 2 1 0 1 0
+    neighbours (3): down=node4(1,1) avail=1 last_report=3.00s ago left=node0(0,0) avail=1 last_report=0.00s ago right=node2(0,2) avail=0 last_report=2.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.160 ms | report delay 0.183 ms | node's previous alert round trip 2.149 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   10.998s] ALERT #46 from node 4 (world 5) at (1,1), cycle 11, detected 2026-10-21 04:16:25
+    availability 1/6 free, ports [110111] (1=in use), recent availability: 1 2 1 1 1 0 1 0 1 0 1
+    neighbours (4): up=node1(0,1) avail=0 last_report=0.00s ago down=node7(2,1) avail=1 last_report=2.99s ago left=node3(1,0) avail=1 last_report=1.00s ago right=node5(1,2) avail=0 last_report=2.00s ago
+    neighbour communication: 8 msgs, 64 bytes, 2.229 ms | report delay 0.627 ms | node's previous alert round trip 3.250 ms
+    decision: 4/4 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   10.999s] ALERT #47 from node 2 (world 3) at (0,2), cycle 11, detected 2026-10-21 04:16:25
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 0 1 1 1 0 0 2 0 0 0
+    neighbours (2): down=node5(1,2) avail=0 last_report=2.00s ago left=node1(0,1) avail=0 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.076 ms | report delay 0.940 ms | node's previous alert round trip 2.146 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   10.999s] ALERT #48 from node 5 (world 6) at (1,2), cycle 11, detected 2026-10-21 04:16:25
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0 0 1 0 0 0 0 4 0
+    neighbours (3): up=node2(0,2) avail=0 last_report=0.00s ago down=node8(2,2) avail=1 last_report=3.00s ago left=node4(1,1) avail=1 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.217 ms | report delay 0.301 ms | node's previous alert round trip 2.155 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   11.005s] ALERT #49 from node 8 (world 9) at (2,2), cycle 11, detected 2026-10-21 04:16:25
+    availability 1/6 free, ports [011111] (1=in use), recent availability: 2 2 1 0 2 0 1 1 1 2 1
+    neighbours (2): up=node5(1,2) avail=0 last_report=0.01s ago left=node7(2,1) avail=1 last_report=3.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 3.208 ms | report delay 0.268 ms | node's previous alert round trip 2.190 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   11.998s] ALERT #50 from node 0 (world 1) at (0,0), cycle 12, detected 2026-10-21 04:16:26
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 0 2 2 0 0 0 0 1 0
+    neighbours (2): down=node3(1,0) avail=1 last_report=2.00s ago right=node1(0,1) avail=0 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.183 ms | report delay 1.051 ms | node's previous alert round trip 2.161 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.002 ms
+[t=   11.999s] ALERT #51 from node 1 (world 2) at (0,1), cycle 12, detected 2026-10-21 04:16:26
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 0 1 2 0 2 1 0 1 0 0
+    neighbours (3): down=node4(1,1) avail=0 last_report=1.00s ago left=node0(0,0) avail=0 last_report=0.00s ago right=node2(0,2) avail=0 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.286 ms | report delay 0.956 ms | node's previous alert round trip 2.134 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   11.999s] ALERT #52 from node 4 (world 5) at (1,1), cycle 12, detected 2026-10-21 04:16:26
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 1 2 1 1 1 0 1 0 1 0 1 0
+    neighbours (4): up=node1(0,1) avail=0 last_report=0.00s ago down=node7(2,1) avail=1 last_report=4.00s ago left=node3(1,0) avail=1 last_report=2.00s ago right=node5(1,2) avail=1 last_report=1.00s ago
+    neighbour communication: 8 msgs, 64 bytes, 2.190 ms | report delay 0.533 ms | node's previous alert round trip 2.154 ms
+    decision: 4/4 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   11.999s] ALERT #53 from node 2 (world 3) at (0,2), cycle 12, detected 2026-10-21 04:16:26
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 0 1 1 1 0 0 2 0 0 0 0
+    neighbours (2): down=node5(1,2) avail=1 last_report=1.00s ago left=node1(0,1) avail=0 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.131 ms | report delay 0.190 ms | node's previous alert round trip 2.136 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   12.001s] ALERT #54 from node 3 (world 4) at (1,0), cycle 12, detected 2026-10-21 04:16:26
+    availability 1/6 free, ports [111011] (1=in use), recent availability: 1 1 0 1 2 2 0 1 1 0 1 1
+    neighbours (3): up=node0(0,0) avail=0 last_report=0.00s ago down=node6(2,0) avail=0 last_report=4.00s ago right=node4(1,1) avail=0 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 1.110 ms | report delay 0.731 ms | node's previous alert round trip 2.141 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   12.001s] ALERT #55 from node 5 (world 6) at (1,2), cycle 12, detected 2026-10-21 04:16:26
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 0 1 0 0 1 0 0 0 0 4 0 1
+    neighbours (3): up=node2(0,2) avail=0 last_report=0.00s ago down=node8(2,2) avail=0 last_report=1.00s ago left=node4(1,1) avail=0 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.161 ms | report delay 1.170 ms | node's previous alert round trip 2.197 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   12.001s] ALERT #56 from node 6 (world 7) at (2,0), cycle 12, detected 2026-10-21 04:16:26
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 0 1 1 2 1 2 0 2 0
+    neighbours (2): up=node3(1,0) avail=1 last_report=0.00s ago right=node7(2,1) avail=1 last_report=4.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.137 ms | report delay 0.995 ms | node's previous alert round trip 3.265 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   12.003s] ALERT #57 from node 7 (world 8) at (2,1), cycle 12, detected 2026-10-21 04:16:26
+    availability 1/6 free, ports [011111] (1=in use), recent availability: 0 2 1 0 1 0 0 1 3 2 1 1
+    neighbours (3): up=node4(1,1) avail=0 last_report=0.00s ago left=node6(2,0) avail=0 last_report=0.00s ago right=node8(2,2) avail=0 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 3.232 ms | report delay 0.384 ms | node's previous alert round trip 2.168 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   12.004s] ALERT #58 from node 8 (world 9) at (2,2), cycle 12, detected 2026-10-21 04:16:26
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 2 1 0 2 0 1 1 1 2 1 0
+    neighbours (2): up=node5(1,2) avail=1 last_report=0.00s ago left=node7(2,1) avail=1 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.163 ms | report delay 0.095 ms | node's previous alert round trip 2.186 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   12.997s] ALERT #59 from node 0 (world 1) at (0,0), cycle 13, detected 2026-10-21 04:16:27
+    availability 1/6 free, ports [110111] (1=in use), recent availability: 0 1 1 0 2 2 0 0 0 0 1 0 1
+    neighbours (2): down=node3(1,0) avail=0 last_report=1.00s ago right=node1(0,1) avail=0 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.160 ms | report delay 0.777 ms | node's previous alert round trip 2.154 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.002 ms
+[t=   13.000s] ALERT #60 from node 2 (world 3) at (0,2), cycle 13, detected 2026-10-21 04:16:27
+    availability 1/6 free, ports [111110] (1=in use), recent availability: 2 0 1 1 1 0 0 2 0 0 0 0 1
+    neighbours (2): down=node5(1,2) avail=1 last_report=1.00s ago left=node1(0,1) avail=0 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.081 ms | report delay 0.897 ms | node's previous alert round trip 2.177 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   13.000s] ALERT #61 from node 6 (world 7) at (2,0), cycle 13, detected 2026-10-21 04:16:27
+    availability 1/6 free, ports [101111] (1=in use), recent availability: 0 1 1 0 1 1 2 1 2 0 2 0 1
+    neighbours (2): up=node3(1,0) avail=0 last_report=1.00s ago right=node7(2,1) avail=0 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.121 ms | report delay 0.325 ms | node's previous alert round trip 3.228 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   13.996s] ALERT #62 from node 0 (world 1) at (0,0), cycle 14, detected 2026-10-21 04:16:28
+    availability 1/6 free, ports [011111] (1=in use), recent availability: 0 1 1 0 2 2 0 0 0 0 1 0 1 1
+    neighbours (2): down=node3(1,0) avail=1 last_report=2.00s ago right=node1(0,1) avail=1 last_report=2.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.142 ms | report delay 0.508 ms | node's previous alert round trip 2.146 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   14.000s] ALERT #63 from node 4 (world 5) at (1,1), cycle 14, detected 2026-10-21 04:16:28
+    availability 1/6 free, ports [111110] (1=in use), recent availability: 1 2 1 1 1 0 1 0 1 0 1 0 2 1
+    neighbours (4): up=node1(0,1) avail=1 last_report=2.00s ago down=node7(2,1) avail=1 last_report=2.00s ago left=node3(1,0) avail=1 last_report=2.00s ago right=node5(1,2) avail=1 last_report=2.00s ago
+    neighbour communication: 8 msgs, 64 bytes, 2.178 ms | report delay 1.103 ms | node's previous alert round trip 2.207 ms
+    decision: 4/4 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   14.001s] ALERT #64 from node 3 (world 4) at (1,0), cycle 14, detected 2026-10-21 04:16:28
+    availability 1/6 free, ports [111110] (1=in use), recent availability: 1 1 0 1 2 2 0 1 1 0 1 1 0 1
+    neighbours (3): up=node0(0,0) avail=1 last_report=0.00s ago down=node6(2,0) avail=1 last_report=1.00s ago right=node4(1,1) avail=1 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 1.109 ms | report delay 0.944 ms | node's previous alert round trip 2.167 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   14.001s] ALERT #65 from node 6 (world 7) at (2,0), cycle 14, detected 2026-10-21 04:16:28
+    availability 1/6 free, ports [110111] (1=in use), recent availability: 0 1 1 0 1 1 2 1 2 0 2 0 1 1
+    neighbours (2): up=node3(1,0) avail=1 last_report=0.00s ago right=node7(2,1) avail=1 last_report=2.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.126 ms | report delay 1.042 ms | node's previous alert round trip 2.164 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   14.003s] ALERT #66 from node 7 (world 8) at (2,1), cycle 14, detected 2026-10-21 04:16:28
+    availability 1/6 free, ports [111011] (1=in use), recent availability: 0 2 1 0 1 0 0 1 3 2 1 1 0 1
+    neighbours (3): up=node4(1,1) avail=1 last_report=0.00s ago left=node6(2,0) avail=1 last_report=0.00s ago right=node8(2,2) avail=0 last_report=2.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.153 ms | report delay 0.827 ms | node's previous alert round trip 2.173 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   14.004s] ALERT #67 from node 8 (world 9) at (2,2), cycle 14, detected 2026-10-21 04:16:28
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 2 1 0 2 0 1 1 1 2 1 0 2 0
+    neighbours (2): up=node5(1,2) avail=1 last_report=2.00s ago left=node7(2,1) avail=1 last_report=0.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.154 ms | report delay 0.119 ms | node's previous alert round trip 2.203 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   14.999s] ALERT #68 from node 2 (world 3) at (0,2), cycle 15, detected 2026-10-21 04:16:29
+    availability 1/6 free, ports [111011] (1=in use), recent availability: 2 0 1 1 1 0 0 2 0 0 0 0 1 2 1
+    neighbours (2): down=node5(1,2) avail=1 last_report=3.00s ago left=node1(0,1) avail=1 last_report=3.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.078 ms | report delay 0.023 ms | node's previous alert round trip 2.166 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   15.004s] ALERT #69 from node 8 (world 9) at (2,2), cycle 15, detected 2026-10-21 04:16:29
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 2 1 0 2 0 1 1 1 2 1 0 2 0 0
+    neighbours (2): up=node5(1,2) avail=1 last_report=3.00s ago left=node7(2,1) avail=1 last_report=1.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.160 ms | report delay 0.733 ms | node's previous alert round trip 2.193 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   15.997s] ALERT #70 from node 0 (world 1) at (0,0), cycle 16, detected 2026-10-21 04:16:30
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 0 2 2 0 0 0 0 1 0 1 1 3 0
+    neighbours (2): down=node3(1,0) avail=0 last_report=2.00s ago right=node1(0,1) avail=0 last_report=4.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.146 ms | report delay 0.726 ms | node's previous alert round trip 2.143 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   15.999s] ALERT #71 from node 4 (world 5) at (1,1), cycle 16, detected 2026-10-21 04:16:30
+    availability 1/6 free, ports [110111] (1=in use), recent availability: 1 2 1 1 1 0 1 0 1 0 1 0 2 1 2 1
+    neighbours (4): up=node1(0,1) avail=0 last_report=4.00s ago down=node7(2,1) avail=0 last_report=2.00s ago left=node3(1,0) avail=0 last_report=2.00s ago right=node5(1,2) avail=1 last_report=4.00s ago
+    neighbour communication: 8 msgs, 64 bytes, 2.271 ms | report delay 0.661 ms | node's previous alert round trip 3.283 ms
+    decision: 4/4 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   16.000s] ALERT #72 from node 3 (world 4) at (1,0), cycle 16, detected 2026-10-21 04:16:30
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 1 1 0 1 2 2 0 1 1 0 1 1 0 1 0 0
+    neighbours (3): up=node0(0,0) avail=0 last_report=0.00s ago down=node6(2,0) avail=1 last_report=2.00s ago right=node4(1,1) avail=1 last_report=0.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 1.137 ms | report delay 0.241 ms | node's previous alert round trip 2.145 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   16.000s] ALERT #73 from node 6 (world 7) at (2,0), cycle 16, detected 2026-10-21 04:16:30
+    availability 1/6 free, ports [111110] (1=in use), recent availability: 0 1 1 0 1 1 2 1 2 0 2 0 1 1 2 1
+    neighbours (2): up=node3(1,0) avail=0 last_report=0.00s ago right=node7(2,1) avail=0 last_report=2.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 1.127 ms | report delay 0.796 ms | node's previous alert round trip 3.274 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.000 ms
+[t=   17.000s] ALERT #74 from node 2 (world 3) at (0,2), cycle 17, detected 2026-10-21 04:16:31
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 0 1 1 1 0 0 2 0 0 0 0 1 2 1 3 0
+    neighbours (2): down=node5(1,2) avail=0 last_report=5.00s ago left=node1(0,1) avail=0 last_report=5.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.205 ms | report delay 0.830 ms | node's previous alert round trip 2.134 ms
+    decision: 1/2 neighbours reported within 5.00s -> no available node in the whole grid | processing 0.002 ms
+[t=   17.998s] ALERT #75 from node 1 (world 2) at (0,1), cycle 18, detected 2026-10-21 04:16:32
+    availability 1/6 free, ports [111101] (1=in use), recent availability: 0 1 2 0 2 1 0 1 0 0 0 1 1 0 0 1
+    neighbours (3): down=node4(1,1) avail=0 last_report=2.00s ago left=node0(0,0) avail=1 last_report=2.00s ago right=node2(0,2) avail=0 last_report=1.00s ago
+    neighbour communication: 6 msgs, 48 bytes, 2.142 ms | report delay 0.274 ms | node's previous alert round trip 2.178 ms
+    decision: 3/3 neighbours reported within 5.00s -> no nodes available nearby | processing 0.001 ms
+[t=   19.997s] ALERT #76 from node 0 (world 1) at (0,0), cycle 20, detected 2026-10-21 04:16:34
+    availability 0/6 free, ports [111111] (1=in use), recent availability: 2 2 0 0 0 0 1 0 1 1 3 0 2 1 0 0
+    neighbours (2): down=node3(1,0) avail=0 last_report=4.00s ago right=node1(0,1) avail=1 last_report=2.00s ago
+    neighbour communication: 4 msgs, 32 bytes, 2.164 ms | report delay 0.745 ms | node's previous alert round trip 2.145 ms
+    decision: 2/2 neighbours reported within 5.00s -> no nodes available nearby | processing 0.002 ms
+
+================ SUMMARY ================
+simulation time      : 20.035 s (listening 20.001 s, shutdown 0.034 s)
+alerts (reports)     : 76 answered, 0 late (after listening stopped)
+replies              : 8 with nearest nodes, 68 with none available
+node events          : 180 cycles, 138 congested, 61 local redirects, 76 reports sent
+alerts per node      : 13 7 10 8 8 7 8 6 9
+reported unresponsive: 0 0 0 0 0 0 0 0 0
+neighbour messages   : sent=742 recv=742 bytes=11872 timeouts=0
+messages with base   : 170 (report 76, reply 76, termination 9, done 9) + clock sync 144
+
+communication time per message type (ms)
+  type                              count        avg        min        max
+  neighbour round (whole)             138      2.019      1.076      3.500
+  neighbour request->response         371      1.548      1.067      3.498
+  alert->reply round trip              76      2.280      2.123      3.283
+  report (node->base, one-way)         76      0.625      0.023      1.193
+  reply (base->node, one-way)          76      1.655      1.101      2.233
+  termination (base->node)              9      1.558      1.095      2.082
+  base processing                      76      0.001      0.000      0.002
+  termination Allreduce                 0          -          -          -
+
+BASE STATION shut down cleanly

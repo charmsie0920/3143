@@ -1,0 +1,32 @@
+node cart=5 world=6 coords=(1,2) k=6 threshold=2 variant=0 (on-demand) clock_offset=0.000085 s
+  neighbour up    : node 2 (0,2)
+  neighbour down  : node 8 (2,2)
+  neighbour left  : node 4 (1,1)
+  neighbour right : none
+YYYY MM DD HH MM SS | avail | ports(1=used) | nbr avail u/d/l/r (-1 none, -2 no reply) | xchg(ms) | action
+2026 10 20 04 14 44 |     4 | 001100 |  -  -  -  - |        - | ok
+2026 10 20 04 14 45 |     3 | 011001 |  -  -  -  - |        - | ok
+2026 10 20 04 14 46 |     2 | 101101 |  -  -  -  - |        - | ok
+2026 10 20 04 14 47 |     4 | 000110 |  -  -  -  - |        - | ok
+2026 10 20 04 14 48 |     2 | 011110 |  -  -  -  - |        - | ok
+2026 10 20 04 14 49 |     1 | 011111 |  3  3  1 -1 |    2.224 | CONGESTED -> redirect EVs to node 2 (0,2) avail=3
+2026 10 20 04 14 50 |     1 | 101111 |  3  2  2 -1 |    2.214 | CONGESTED -> redirect EVs to node 2 (0,2) avail=3
+2026 10 20 04 14 51 |     2 | 101110 |  -  -  -  - |        - | ok
+2026 10 20 04 14 52 |     2 | 111100 |  -  -  -  - |        - | ok
+2026 10 20 04 14 53 |     3 | 001110 |  -  -  -  - |        - | ok
+2026 10 20 04 14 54 |     3 | 010011 |  -  -  -  - |        - | ok
+2026 10 20 04 14 55 |     3 | 000111 |  -  -  -  - |        - | ok
+2026 10 20 04 14 56 |     0 | 111111 |  5  0  1 -1 |    2.274 | CONGESTED -> redirect EVs to node 2 (0,2) avail=5
+2026 10 20 04 14 57 |     1 | 111110 |  1  0  1 -1 |    2.171 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] forward EVs to 2 node(s) at distance 2: node3(1,0) node7(2,1) (round trip 3.236 ms, base->node 1.554 ms)
+2026 10 20 04 14 58 |     2 | 101011 |  -  -  -  - |        - | ok
+2026 10 20 04 14 59 |     2 | 111010 |  -  -  -  - |        - | ok
+2026 10 20 04 15 00 |     3 | 100110 |  -  -  -  - |        - | ok
+2026 10 20 04 15 01 |     2 | 111100 |  -  -  -  - |        - | ok
+2026 10 20 04 15 02 |     3 | 010011 |  -  -  -  - |        - | ok
+2026 10 20 04 15 03 |     4 | 000101 |  -  -  -  - |        - | ok
+
+TERMINATED by base station (termination delay 2.320 ms)
+summary: cycles=20 congested=4 local_redirects=3 reports_to_base=1 replies=1
+         neighbour msgs sent=25 recv=25 bytes=400 rounds=4 avg_round=2.221 ms timeouts=0
+         alert round trip avg=3.236 ms

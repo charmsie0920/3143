@@ -1,0 +1,45 @@
+node cart=19 world=20 coords=(0,19) k=6 threshold=2 variant=1 (periodic Neighbor_allgather) clock_offset=-0.000022 s
+  neighbour up    : none
+  neighbour down  : none
+  neighbour left  : node 18 (0,18)
+  neighbour right : node 20 (0,20)
+YYYY MM DD HH MM SS | avail | ports(1=used) | nbr avail u/d/l/r (-1 none, -2 no reply) | xchg(ms) | action
+2026 10 21 04 25 51 |     0 | 111111 | -1 -1  0  1 |    0.057 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] forward EVs to 1 node(s) at distance 2: node21(0,21) (round trip 4.296 ms, base->node 2.169 ms)
+2026 10 21 04 25 52 |     1 | 111101 | -1 -1  1  0 |    0.010 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 4.261 ms, base->node 2.130 ms)
+2026 10 21 04 25 53 |     1 | 110111 | -1 -1  2  2 |    0.011 | CONGESTED -> redirect EVs to node 18 (0,18) avail=2
+2026 10 21 04 25 54 |     0 | 111111 | -1 -1  0  0 |    0.009 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.246 ms, base->node 1.901 ms)
+2026 10 21 04 25 55 |     1 | 111011 | -1 -1  0  1 |    0.014 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.220 ms, base->node 1.506 ms)
+2026 10 21 04 25 56 |     1 | 111011 | -1 -1  2  0 |    0.009 | CONGESTED -> redirect EVs to node 18 (0,18) avail=2
+2026 10 21 04 25 57 |     0 | 111111 | -1 -1  1  0 |    0.027 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.262 ms, base->node 1.239 ms)
+2026 10 21 04 25 58 |     1 | 111101 | -1 -1  1  1 |    0.032 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 4.267 ms, base->node 1.992 ms)
+2026 10 21 04 25 59 |     0 | 111111 | -1 -1  0  1 |    0.009 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.225 ms, base->node 1.583 ms)
+2026 10 21 04 26 00 |     1 | 111011 | -1 -1  0  1 |   15.848 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 4.304 ms, base->node 2.121 ms)
+2026 10 21 04 26 01 |     0 | 111111 | -1 -1  1  1 |    0.016 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.282 ms, base->node 1.542 ms)
+2026 10 21 04 26 02 |     0 | 111111 | -1 -1  0  0 |    0.021 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.232 ms, base->node 1.539 ms)
+2026 10 21 04 26 03 |     1 | 011111 | -1 -1  1  0 |    0.008 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.253 ms, base->node 1.621 ms)
+2026 10 21 04 26 04 |     2 | 010111 | -1 -1  1  2 |    0.008 | ok
+2026 10 21 04 26 05 |     1 | 111011 | -1 -1  1  1 |    0.008 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.225 ms, base->node 1.203 ms)
+2026 10 21 04 26 06 |     1 | 111101 | -1 -1  1  1 |    0.009 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.216 ms, base->node 1.812 ms)
+2026 10 21 04 26 07 |     2 | 110101 | -1 -1  0  0 |    0.017 | ok
+2026 10 21 04 26 08 |     1 | 011111 | -1 -1  1  0 |    0.109 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.220 ms, base->node 1.803 ms)
+2026 10 21 04 26 09 |     1 | 110111 | -1 -1  2  3 |    0.008 | CONGESTED -> redirect EVs to node 20 (0,20) avail=3
+2026 10 21 04 26 10 |     1 | 110111 | -1 -1  0  2 |    0.008 | CONGESTED -> redirect EVs to node 20 (0,20) avail=2
+
+TERMINATED by base station (termination delay 2.251 ms)
+summary: cycles=20 congested=18 local_redirects=4 reports_to_base=14 replies=14
+         neighbour msgs sent=40 recv=40 bytes=320 rounds=20 avg_round=0.812 ms timeouts=0
+         alert round trip avg=3.536 ms

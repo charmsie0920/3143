@@ -1,0 +1,33 @@
+BASE STATION started 2026-10-21 14:41:58
+grid=3x3 (9 nodes, grid) k=6 threshold=2 busy=60% cycle=1.00s duration=20.0s
+node exchange=0 (on-demand), base listener=1 (Irecv+Test/Isend), period=5.00s, poll=1.00ms, nbr_timeout=500ms, dead_node=-1
+message sizes: report 480 B, reply 792 B, termination 8 B, neighbour request/response 8 B
+
+[t=    4.997s] ALERT #1 from node 0 (world 1) at (0,0), cycle 5, detected 2026-10-21 14:42:03
+    availability 1/6 free, ports [110111] (1=in use), recent availability: 3 0 3 5 1
+    neighbours (2): down=node3(1,0) avail=1 last_report=never right=node1(0,1) avail=1 last_report=never
+    neighbour communication: 4 msgs, 32 bytes, 2.144 ms | report delay 0.913 ms
+    decision: 0/2 neighbours reported within 5.00s -> 3 nearest available node(s) at distance 2: node2(0,2) node4(1,1) node6(2,0) | processing 0.001 ms
+
+================ SUMMARY ================
+simulation time      : 20.034 s (listening 20.001 s, shutdown 0.033 s)
+alerts (reports)     : 1 answered, 0 late (after listening stopped)
+replies              : 1 with nearest nodes, 0 with none available
+node events          : 180 cycles, 43 congested, 42 local redirects, 1 reports sent
+alerts per node      : 1 0 0 0 0 0 0 0 0
+reported unresponsive: 0 0 0 0 0 0 0 0 0
+neighbour messages   : sent=222 recv=222 bytes=3552 timeouts=0
+messages with base   : 20 (report 1, reply 1, termination 9, done 9) + clock sync 144
+
+communication time per message type (ms)
+  type                              count        avg        min        max
+  neighbour round (whole)              43      2.046      1.093      3.519
+  neighbour request->response         111      1.603      1.067      3.517
+  alert->reply round trip               1      2.181      2.181      2.181
+  report (node->base, one-way)          1      0.913      0.913      0.913
+  reply (base->node, one-way)           1      1.267      1.267      1.267
+  termination (base->node)              9      1.861      1.339      2.293
+  base processing                       1      0.001      0.001      0.001
+  termination Allreduce                 0          -          -          -
+
+BASE STATION shut down cleanly
