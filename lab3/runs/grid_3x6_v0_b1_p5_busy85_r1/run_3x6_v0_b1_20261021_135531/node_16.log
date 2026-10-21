@@ -1,0 +1,91 @@
+node cart=16 world=17 coords=(2,4) k=6 threshold=2 variant=0 (on-demand) clock_offset=0.000075 s
+  neighbour up    : node 10 (1,4)
+  neighbour down  : none
+  neighbour left  : node 15 (2,3)
+  neighbour right : node 17 (2,5)
+YYYY MM DD HH MM SS | avail | ports(1=used) | nbr avail u/d/l/r (-1 none, -2 no reply) | xchg(ms) | action
+2026 10 21 13 55 32 |     0 | 111111 |  0 -1  0  3 |    2.138 | CONGESTED -> redirect EVs to node 17 (2,5) avail=3
+2026 10 21 13 55 33 |     1 | 111110 |  1 -1  2  0 |    2.139 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 55 34 |     2 | 100111 |  -  -  -  - |        - | ok
+2026 10 21 13 55 35 |     0 | 111111 |  2 -1  2  1 |    2.135 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 55 36 |     1 | 011111 |  2 -1  0  1 |    2.137 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 55 37 |     0 | 111111 |  0 -1  1  2 |    2.136 | CONGESTED -> redirect EVs to node 17 (2,5) avail=2
+2026 10 21 13 55 38 |     3 | 110010 |  -  -  -  - |        - | ok
+2026 10 21 13 55 39 |     0 | 111111 |  3 -1  1  1 |    2.153 | CONGESTED -> redirect EVs to node 10 (1,4) avail=3
+2026 10 21 13 55 40 |     0 | 111111 |  0 -1  0  1 |    2.159 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.207 ms, base->node 1.217 ms)
+2026 10 21 13 55 41 |     1 | 111011 |  0 -1  1  0 |    2.142 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.180 ms, base->node 1.822 ms)
+2026 10 21 13 55 42 |     1 | 011111 |  1 -1  0  2 |    2.133 | CONGESTED -> redirect EVs to node 17 (2,5) avail=2
+2026 10 21 13 55 43 |     0 | 111111 |  3 -1  2  1 |    2.143 | CONGESTED -> redirect EVs to node 10 (1,4) avail=3
+2026 10 21 13 55 44 |     2 | 111001 |  -  -  -  - |        - | ok
+2026 10 21 13 55 45 |     1 | 111101 |  1 -1  0  1 |    2.135 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.168 ms, base->node 1.867 ms)
+2026 10 21 13 55 46 |     0 | 111111 |  2 -1  0  1 |    2.147 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 55 47 |     2 | 001111 |  -  -  -  - |        - | ok
+2026 10 21 13 55 48 |     1 | 110111 |  2 -1  1  1 |    2.137 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 55 49 |     1 | 110111 |  0 -1  2  1 |    2.132 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 55 50 |     1 | 111101 |  0 -1  1  0 |    2.142 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no available node in the whole grid (round trip 2.166 ms, base->node 1.327 ms)
+2026 10 21 13 55 51 |     1 | 011111 |  0 -1  0  1 |    2.157 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.178 ms, base->node 1.293 ms)
+2026 10 21 13 55 52 |     2 | 100111 |  -  -  -  - |        - | ok
+2026 10 21 13 55 53 |     1 | 111110 |  2 -1  1  1 |    2.162 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 55 54 |     0 | 111111 |  0 -1  1  2 |    2.132 | CONGESTED -> redirect EVs to node 17 (2,5) avail=2
+2026 10 21 13 55 55 |     1 | 011111 |  1 -1  2  0 |    2.144 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 55 56 |     1 | 101111 |  0 -1  2  1 |    2.145 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 55 57 |     1 | 111110 |  1 -1  1  0 |    2.145 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.170 ms, base->node 1.335 ms)
+2026 10 21 13 55 58 |     0 | 111111 |  1 -1  1  0 |    2.144 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.172 ms, base->node 1.334 ms)
+2026 10 21 13 55 59 |     1 | 011111 |  1 -1  0  0 |    2.179 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.259 ms, base->node 2.004 ms)
+2026 10 21 13 56 00 |     1 | 111101 |  2 -1  1  2 |    2.141 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 56 01 |     2 | 011101 |  -  -  -  - |        - | ok
+2026 10 21 13 56 02 |     0 | 111111 |  2 -1  0  2 |    2.155 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 56 03 |     2 | 100111 |  -  -  -  - |        - | ok
+2026 10 21 13 56 04 |     1 | 111101 |  0 -1  2  0 |    2.167 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 56 05 |     1 | 011111 |  0 -1  1  0 |    2.169 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.177 ms, base->node 1.585 ms)
+2026 10 21 13 56 06 |     2 | 110110 |  -  -  -  - |        - | ok
+2026 10 21 13 56 07 |     0 | 111111 |  1 -1  2  0 |    2.148 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 56 08 |     0 | 111111 |  0 -1  0  1 |    2.134 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.167 ms, base->node 1.361 ms)
+2026 10 21 13 56 09 |     1 | 111110 |  2 -1  2  1 |    2.189 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 56 10 |     1 | 111011 |  0 -1  0  1 |    3.236 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.256 ms, base->node 2.111 ms)
+2026 10 21 13 56 11 |     3 | 000111 |  -  -  -  - |        - | ok
+2026 10 21 13 56 12 |     1 | 101111 |  1 -1  0  2 |    2.148 | CONGESTED -> redirect EVs to node 17 (2,5) avail=2
+2026 10 21 13 56 13 |     1 | 111101 |  0 -1  1  0 |    2.140 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.238 ms, base->node 2.187 ms)
+2026 10 21 13 56 14 |     1 | 111110 |  0 -1  0  0 |    2.153 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.247 ms, base->node 2.128 ms)
+2026 10 21 13 56 15 |     1 | 111101 |  2 -1  0  1 |    2.149 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 56 16 |     1 | 111110 |  2 -1  0  0 |    2.141 | CONGESTED -> redirect EVs to node 10 (1,4) avail=2
+2026 10 21 13 56 17 |     1 | 110111 |  0 -1  2  0 |    2.158 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 56 18 |     1 | 011111 |  0 -1  1  0 |    2.140 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.176 ms, base->node 1.462 ms)
+2026 10 21 13 56 19 |     1 | 111011 |  0 -1  1  1 |    3.212 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.167 ms, base->node 1.881 ms)
+2026 10 21 13 56 20 |     0 | 111111 |  0 -1  0  0 |    2.146 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.176 ms, base->node 1.538 ms)
+2026 10 21 13 56 21 |     0 | 111111 |  1 -1  0  1 |    2.153 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.229 ms, base->node 2.103 ms)
+2026 10 21 13 56 22 |     3 | 101010 |  -  -  -  - |        - | ok
+2026 10 21 13 56 23 |     0 | 111111 |  1 -1  2  0 |    2.166 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 56 24 |     1 | 111101 |  1 -1  1  0 |    2.146 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.172 ms, base->node 1.181 ms)
+2026 10 21 13 56 25 |     0 | 111111 |  0 -1  1  2 |    2.151 | CONGESTED -> redirect EVs to node 17 (2,5) avail=2
+2026 10 21 13 56 26 |     2 | 011101 |  -  -  -  - |        - | ok
+2026 10 21 13 56 27 |     0 | 111111 |  3 -1  0  0 |    2.160 | CONGESTED -> redirect EVs to node 10 (1,4) avail=3
+2026 10 21 13 56 28 |     0 | 111111 |  1 -1  1  0 |    2.146 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 3.306 ms, base->node 2.081 ms)
+2026 10 21 13 56 29 |     1 | 111101 |  0 -1  1  1 |    2.182 | CONGESTED, all neighbours full -> ALERT base station
+  [base reply] no nodes available nearby (round trip 2.191 ms, base->node 1.752 ms)
+2026 10 21 13 56 30 |     1 | 111110 |  0 -1  2  0 |    3.217 | CONGESTED -> redirect EVs to node 15 (2,3) avail=2
+2026 10 21 13 56 31 |     0 | 111111 |  0 -1  1  2 |    2.146 | CONGESTED -> redirect EVs to node 17 (2,5) avail=2
+
+TERMINATED by base station (termination delay 1.901 ms)
+summary: cycles=60 congested=49 local_redirects=29 reports_to_base=20 replies=20
+         neighbour msgs sent=287 recv=287 bytes=4592 rounds=49 avg_round=2.214 ms timeouts=0
+         alert round trip avg=2.450 ms
