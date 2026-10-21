@@ -51,7 +51,7 @@ Output: `<out_dir>/run_<m>x<n>_v<variant>_b<base_variant>_<time>/base_station.lo
 | `submit_chain.sh` | Queues `wsn_sweep.job` several times back to back (10-minute job limit) |
 | `plot_task3.py` | Reads the runs and draws every graph and table: `python3 plot_task3.py runs graphs` |
 | `graphs/` | The graphs used in the presentation, plus `tables/` with every number behind them |
-| `runs.tar.gz` | All 208 CAAS runs: `base_station.log`, every `node_<id>.log`, `results.csv` per run |
+| `runs/` | All 208 CAAS runs: `base_station.log`, every `node_<id>.log`, `results.csv` per run |
 
 Folder names in `runs/` say what each run was: `<suite>_<m>x<n>_v<variant>_b<base_variant>_p<period>_busy<pct>_r1`.
 The Task 3a/3b graphs use the final versions (`v0_b1`); runs with `b0` were measured before we switched the
