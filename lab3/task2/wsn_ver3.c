@@ -14,8 +14,8 @@
  *                    3 periodic Isend/Irecv              (periodic = every node, every cycle)
  *   period         base station "recent report" window (s)
  *   base_variant   base station listener
- *                    0 Iprobe+Recv, blocking Send reply (default)
- *                    1 Irecv+Test, Isend reply
+ *                    0 Iprobe+Recv, blocking Send reply
+ *                    1 Irecv+Test, Isend reply (default)
  *                    2 persistent Recv_init per node + Testsome, Isend reply
  *   poll_ms        how often idle processes check for messages (ms)
  *   nbr_timeout_ms on-demand: give up waiting for a neighbour after this long
@@ -1214,7 +1214,7 @@ int main(int argc, char **argv) {
     cfg.busy_pct       = arg_i(argc, argv, 7, 60);
     cfg.variant        = arg_i(argc, argv, 8, VAR_ON_DEMAND);
     cfg.period         = arg_d(argc, argv, 9, 5.0);
-    cfg.base_variant   = arg_i(argc, argv, 10, BV_IPROBE_RECV);
+    cfg.base_variant   = arg_i(argc, argv, 10, BV_IRECV_TEST);
     cfg.poll_ms        = arg_d(argc, argv, 11, 1.0);
     cfg.nbr_timeout_ms = arg_i(argc, argv, 12, 500);
     cfg.dead_node      = arg_i(argc, argv, 13, -1);
