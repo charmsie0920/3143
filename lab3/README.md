@@ -9,6 +9,7 @@ Charmaine Chee Hing Yi 33520399 | Nazara Glaukofani Lopulisa 35135271
 | `final/wsn_sweep.job`, `final/submit_chain.sh` | CAAS Slurm scripts for the Task 3 sweep |
 | `final/runs/` | every CAAS run: `run_*/base_station.log`, `run_*/node_*.log`, `results.csv` |
 | `final/graphs/` | Task 3 graphs, `tables/` and `plot_task3.py` |
+| `final/verify_replies.py` | replays every base station decision in `runs/` and re-checks it (`python3 verify_replies.py runs`) |
 | `task1/`, `task2/` | earlier versions, kept for reference |
 | `task3/Dockerfile` | local Open MPI + OpenMP test environment |
 
